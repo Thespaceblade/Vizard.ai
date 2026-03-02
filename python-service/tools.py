@@ -196,7 +196,15 @@ def create_dynamic_viz_html(
     if y is None:
         y = defaults["y"]
 
-    template = "plotly_white"
+    # Map agent-only types to supported Plotly; preserve options for zoom/animate
+    if viz_type == "scatter_geo":
+        return _create_scatter_geo_html(df, x, y, theme, options)
+    if viz_type == "treemap":
+        return _create_treemap_html(df, x, y, aggregate, theme, options)
+    if viz_type == "heatmap":
+        viz_type = "scatter"  # fallback; or could add density_heatmap
+
+    template = _plotly_template(theme)
     color_col = options.get("color")
 
     if viz_type == "choropleth":
@@ -212,6 +220,14 @@ def create_dynamic_viz_html(
         fig = px.bar(working_df, x=x, y=y, color=color_col, template=template, color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
     elif viz_type == "line" and x and y:
         fig = px.line(working_df, x=x, y=y, color=color_col, template=template, markers=True, color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
+        time_col = options.get("time_column")
+        if options.get("animate_time") and time_col and time_col in df.columns and time_col != x:
+            fig = px.line(
+                df.sort_values(time_col),
+                x=x, y=y, color=color_col, template=template, markers=True,
+                animation_frame=time_col,
+                color_discrete_sequence=VIZ_PALETTE_LIGHT_BG,
+            )
     elif viz_type == "scatter" and x and y:
         fig = px.scatter(working_df, x=x, y=y, color=color_col, template=template, color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
     elif viz_type == "histogram" and y:
@@ -230,6 +246,10 @@ def create_dynamic_viz_html(
             plot_bgcolor="white",
             font=dict(color="#334155"),
         )
+        if options.get("zoom"):
+            fig.update_layout(dragmode="zoom")
+            fig.update_xaxes(fixedrange=False)
+            fig.update_yaxes(fixedrange=False)
 
     html = pio.to_html(fig, full_html=True, include_plotlyjs="cdn")
     return html
@@ -238,6 +258,65 @@ def create_dynamic_viz_html(
 # ---------------------------------------------------------------------------
 # Choropleth / Map support
 # ---------------------------------------------------------------------------
+
+
+def _create_scatter_geo_html(
+    df: pd.DataFrame,
+    x: Optional[str],
+    y: Optional[str],
+    theme: Optional[str] = "minimal",
+    options: Optional[Dict[str, Any]] = None,
+) -> str:
+    if options is None:
+        options = {}
+    template = _plotly_template(theme)
+    lat_col = options.get("lat")
+    lon_col = options.get("lon")
+    if not lat_col or not lon_col:
+        numeric_cols = list(df.select_dtypes(include=[np.number]).columns)
+        lat_col = lat_col or next((c for c in df.columns if "lat" in c.lower()), None)
+        lon_col = lon_col or next((c for c in df.columns if "lon" in c.lower()), None)
+    if not lat_col or not lon_col:
+        return _create_choropleth_html(df, x, y, theme, options)
+    value_col = y or next((c for c in df.columns if c != lat_col and c != lon_col and np.issubdtype(df[c].dtype, np.number)), None)
+    fig = px.scatter_geo(
+        df,
+        lat=lat_col,
+        lon=lon_col,
+        color=value_col,
+        template=template,
+        size=value_col if value_col else None,
+    )
+    fig.update_geos(showcountries=True, showcoastlines=True)
+    fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), dragmode="zoom")
+    return pio.to_html(fig, full_html=True, include_plotlyjs="cdn")
+
+
+def _create_treemap_html(
+    df: pd.DataFrame,
+    x: Optional[str],
+    y: Optional[str],
+    aggregate: Optional[str],
+    theme: Optional[str] = "minimal",
+    options: Optional[Dict[str, Any]] = None,
+) -> str:
+    if options is None:
+        options = {}
+    template = _plotly_template(theme)
+    working = df
+    if aggregate in {"sum", "mean", "avg"} and x and y:
+        agg_func = "sum" if aggregate == "sum" else "mean"
+        working = df.groupby(x)[y].agg(agg_func).reset_index()
+    if not x or not y:
+        numeric_cols = list(working.select_dtypes(include=[np.number]).columns)
+        non_numeric = [c for c in working.columns if c not in numeric_cols]
+        x = x or (non_numeric[0] if non_numeric else None)
+        y = y or (numeric_cols[0] if numeric_cols else None)
+    if not x or not y:
+        return create_dynamic_viz_html(df, "bar", x, y, aggregate, theme, options)
+    fig = px.treemap(working, path=[x], values=y, template=template)
+    fig.update_layout(margin=dict(l=40, r=20, t=40, b=40))
+    return pio.to_html(fig, full_html=True, include_plotlyjs="cdn")
 
 
 def _create_choropleth_html(
@@ -250,6 +329,8 @@ def _create_choropleth_html(
     if options is None:
         options = {}
 
+    template = _plotly_template(theme)
+    location_col = options.get("location_column") or location_col
     if location_col is None or value_col is None:
         cols = list(df.columns)
         non_numeric = [c for c in cols if not np.issubdtype(df[c].dtype, np.number)]
@@ -275,7 +356,8 @@ def _create_choropleth_html(
         plot_bgcolor="white",
         font=dict(color="#334155"),
     )
-
+    if options.get("zoom"):
+        fig.update_geos(showcountries=True)
     return pio.to_html(fig, full_html=True, include_plotlyjs="cdn")
 
 

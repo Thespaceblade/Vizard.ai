@@ -79,19 +79,55 @@ function deriveHeuristicSpec(
 
   const wantsDynamic =
     /interactive|dynamic|hover|zoom|animated|plotly/i.test(prompt);
-  const wantsMap = /map|choropleth|geo|country|countries|world|globe/i.test(
-    prompt,
+  const wantsMap =
+    /map|choropleth|geo|country|countries|world|globe|heat|cluster/i.test(
+      prompt,
+    );
+  const wantsZoom = /zoom|pan|explore/i.test(prompt);
+  const wantsAnimate = /animate|chronological|over time|change over/i.test(prompt);
+
+  const timeColNames = ["date", "time", "year", "month", "timestamp"];
+  const timeCol = schema.find(
+    (f) =>
+      timeColNames.some((k) => f.name.toLowerCase().includes(k)) ||
+      /date|time|datetime/i.test(f.dtype),
+  )?.name;
+  const hasSpatialNames = ["lat", "lon", "latitude", "longitude", "country", "state", "region", "city"];
+  const latCol = schema.find((f) =>
+    /lat|latitude/i.test(f.name),
+  )?.name;
+  const lonCol = schema.find((f) =>
+    /lon|longitude/i.test(f.name),
+  )?.name;
+  const hasLatLon = Boolean(latCol && lonCol);
+  const geoNameCol = schema.find((f) =>
+    hasSpatialNames.some((k) => f.name.toLowerCase().includes(k)),
+  )?.name;
+  const maxCategoricalUnique = Math.max(
+    0,
+    ...schema
+      .filter((f) => nonNumericCols.includes(f.name))
+      .map((f) => f.unique ?? 0),
   );
+  const manyCategories = maxCategoricalUnique > 10;
 
   let viz_type: VizSpec["viz_type"] = "histogram";
-  if (wantsMap) {
-    viz_type = "choropleth";
-  } else if (/time|date|year|trend/i.test(prompt)) {
+  if (wantsMap || hasLatLon || geoNameCol) {
+    if (hasLatLon && (/heat|cluster|point|dot/i.test(prompt) || !geoNameCol)) {
+      viz_type = "scatter_geo";
+    } else {
+      viz_type = "choropleth";
+    }
+  } else if (timeCol && numericCols.length > 0) {
+    viz_type = "line";
+  } else if (/time|date|year|trend/i.test(prompt) && numericCols.length > 0) {
     viz_type = "line";
   } else if (/scatter|relationship|correlat/i.test(prompt)) {
     viz_type = "scatter";
-  } else if (/bar|compare|category|group/i.test(prompt)) {
-    viz_type = "bar";
+  } else if (/bar|compare|category|group/i.test(prompt) || (nonNumericCols.length > 0 && numericCols.length > 0)) {
+    viz_type = manyCategories ? "treemap" : "bar";
+  } else if (/treemap|tree map/i.test(prompt)) {
+    viz_type = "treemap";
   }
 
   const y =
@@ -110,24 +146,41 @@ function deriveHeuristicSpec(
   const theme =
     (themeMatch?.[1]?.toLowerCase() as VizSpec["theme"]) ?? "minimal";
 
-  const options: Record<string, unknown> = {};
+  const options: VizSpec["options"] = {};
   const scopeMatch = prompt.match(
     /\b(world|usa|europe|asia|africa|north america|south america)\b/i,
   );
   if (scopeMatch) {
-    options["scope"] = scopeMatch[1].toLowerCase();
+    options.scope = scopeMatch[1].toLowerCase();
+  }
+  options.zoom = wantsZoom || viz_type === "choropleth" || viz_type === "scatter_geo";
+  if (timeCol && (viz_type === "line" || wantsAnimate)) {
+    options.animate_time = true;
+    options.time_column = timeCol;
+  }
+  if (viz_type === "scatter_geo" && latCol && lonCol) {
+    options.lat = latCol;
+    options.lon = lonCol;
+  }
+  if (geoNameCol && viz_type === "choropleth") {
+    options.location_column = geoNameCol;
   }
 
   return {
     viz_type,
     x,
     y,
-    aggregate: viz_type === "bar" ? "sum" : null,
+    aggregate: viz_type === "bar" || viz_type === "treemap" ? "sum" : null,
     theme,
     options,
     cleaning_instructions: null,
     explanation: null,
-    dynamic: wantsDynamic || viz_type === "choropleth",
+    dynamic:
+      wantsDynamic ||
+      viz_type === "choropleth" ||
+      viz_type === "scatter_geo" ||
+      viz_type === "treemap" ||
+      (viz_type === "line" && Boolean(timeCol)),
   };
 }
 
@@ -150,34 +203,32 @@ async function deriveSpecWithLLM(
     .join(", ");
 
   const systemPrompt = [
-    "You are a visualization planning agent for Vizard.ai.",
-    "The user uploads a CSV and gives a natural language prompt.",
-    "Respond with a SINGLE JSON object. No text outside the JSON.",
+    "You are a visualization planning agent for Vizard.ai. You decide chart type from the DATA and the user prompt.",
+    "The user uploads a CSV and gives a natural language prompt. Respond with a SINGLE JSON object. No text outside the JSON.",
     "",
     "JSON shape:",
     "{",
-    '  "viz_type": "bar" | "line" | "scatter" | "histogram" | "choropleth",',
+    '  "viz_type": "bar" | "line" | "scatter" | "histogram" | "choropleth" | "treemap" | "heatmap" | "scatter_geo",',
     '  "x": string | null,',
     '  "y": string | null,',
     '  "aggregate": "sum" | "mean" | "avg" | null,',
     '  "theme": "minimal" | "bold" | "corporate",',
-    '  "options": { "scope"?: string, "locationmode"?: string, "color"?: string },',
+    '  "options": { "scope"?: string, "locationmode"?: string, "color"?: string, "zoom"?: boolean, "animate_time"?: boolean, "time_column"?: string, "lat"?: string, "lon"?: string },',
     '  "cleaning_instructions": string | null,',
     '  "explanation": string | null,',
     '  "dynamic": boolean',
     "}",
     "",
-    "Rules:",
-    '- For geographic/country data use "choropleth" and set dynamic=true.',
-    "- For time series use line charts.",
-    "- For category comparisons use bar charts.",
-    "- For distributions use histograms.",
-    "- For relationships between two numeric columns use scatter.",
-    '- Set dynamic=true when the user asks for interactive/dynamic/hover/animated charts.',
-    '- For choropleth: options.scope can be "world","usa","europe","asia","africa","north america","south america".',
-    '- For choropleth: options.locationmode is "country names" or "ISO-3" or "USA-states".',
-    "- Use column names that exist in the schema.",
-    "- Provide a short explanation of your choice.",
+    "Data-driven rules (you make these decisions):",
+    "- Numerical + time column (date/time/year/month): use line or time series. Set options.animate_time=true and options.time_column to the time column for chronological animation.",
+    "- Categorical data: use bar when few categories (labels stay readable); use treemap when many categories (avoid overcrowding, show proportions clearly).",
+    "- Spatial data: if latitude/longitude columns exist use scatter_geo (points or clusters); if country/state/region names use choropleth. Set options.zoom=true for maps.",
+    "- Two numeric columns, no time: scatter. Single numeric distribution: histogram.",
+    "- Prefer clarity: choose the chart that shows noticeable differences and keeps labels readable.",
+    "- When the user asks for interactive/zoom/animated/chronological, set dynamic=true and set options.zoom or options.animate_time as appropriate.",
+    "",
+    "Choropleth: options.scope can be world, usa, europe, asia, africa, north america, south america; options.locationmode can be country names, ISO-3, USA-states.",
+    "Use only column names that exist in the schema. Provide a short explanation of your choice.",
   ].join("\n");
 
   const llmInput = [
@@ -198,14 +249,16 @@ async function deriveSpecWithLLM(
     return deriveHeuristicSpec(userPrompt, insight);
   }
 
+  const fallback = deriveHeuristicSpec(userPrompt, insight);
+  const opts = (parsed.options as VizSpec["options"]) ?? fallback.options ?? {};
+
   return {
-    viz_type:
-      parsed.viz_type ?? deriveHeuristicSpec(userPrompt, insight).viz_type,
+    viz_type: (parsed.viz_type as VizSpec["viz_type"]) ?? fallback.viz_type,
     x: parsed.x ?? null,
     y: parsed.y ?? null,
     aggregate: parsed.aggregate ?? null,
     theme: (parsed.theme as VizSpec["theme"]) ?? "minimal",
-    options: parsed.options ?? {},
+    options: opts,
     cleaning_instructions: parsed.cleaning_instructions ?? null,
     explanation: parsed.explanation ?? null,
     dynamic: parsed.dynamic ?? false,

@@ -26,7 +26,15 @@ export interface CleanResponse {
   csv_base64: string;
 }
 
-export type VizType = "bar" | "line" | "scatter" | "histogram" | "choropleth";
+export type VizType =
+  | "bar"
+  | "line"
+  | "scatter"
+  | "histogram"
+  | "choropleth"
+  | "treemap"
+  | "heatmap"
+  | "scatter_geo";
 
 export interface VizSpec {
   viz_type: VizType;
@@ -34,7 +42,18 @@ export interface VizSpec {
   y?: string | null;
   aggregate?: "sum" | "mean" | "avg" | null;
   theme?: "minimal" | "bold" | "corporate" | string | null;
-  options?: Record<string, unknown> | null;
+  options?: {
+    scope?: string;
+    locationmode?: string;
+    color?: string;
+    /** Enable zoom/pan on maps and large charts for clarity. */
+    zoom?: boolean;
+    /** Animate change over a time column (e.g. time series or chronological). */
+    animate_time?: boolean;
+    /** Column name for time animation. */
+    time_column?: string;
+    [key: string]: unknown;
+  } | null;
   cleaning_instructions?: string | null;
   explanation?: string | null;
   dynamic?: boolean | null;
