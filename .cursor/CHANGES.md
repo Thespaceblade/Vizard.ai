@@ -8,6 +8,7 @@ This file is updated after every automated change so it can be used for descript
 
 _Summary of the most recent automated edits. Use this section when crafting commit messages._
 
+- Added `web/vercel.json` and Vercel deployment notes in `web/README.md` (root directory, env vars).
 - Added `.cursor/CHANGES.md` and Cursor rules to log automated changes and use them for conventional commit messages.
 - Added `.cursor/rules/update-changes-after-edit.mdc` and `commit-conventions.mdc` for change logging and commit/push behavior.
 - Added root `.gitignore` for OS, env, Python, and Node artifacts.
