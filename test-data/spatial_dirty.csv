@@ -1,0 +1,12 @@
+location_id,name,category,country,city,latitude,longitude
+LOC001,Gas Works Park,park,USA,Seattle,47.6456,-122.3344
+LOC002,PikePlaceMarket,Market,USA,Seattle,47.6094W,-122.3417
+LOC003,WaterfrontPark,Park,USA,Portland,45.5120,-122.6736
+LOC003,WaterfrontPark,Park,USA,Portland,45.5120,-122.6736
+LOC004,MillenniumPark,Park,USA,Chicago,41.8826,-187.6226
+LOC005,ZilkerPark,Park,USA,Austin,,,
+LOC006,SouthBeach,Beach,USA,Miami,25.7826,-80.1341
+LOC007,BostonCommon,Park,USA,Boston,42.3550,-71.0656
+LOC008,SpaceNeedle,Landmark,USA,Seattle,-122.3493,47.6205
+LOC009,WillametteRiverfront,Waterfront,USA,Portland,not_a_lat,-122.6733
+LOC010,NavyPier,Waterfront,USA,Chicago,41.8917,-87.6078

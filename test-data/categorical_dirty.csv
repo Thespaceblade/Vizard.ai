@@ -1,0 +1,11 @@
+user_id,segment,plan,device_type,country,churned
+U001,enterprise,Pro,Desktop,USA,false
+U002,SMB,Basic,Mobile,United States,false
+U003,SMB,Pro,Tablet,Canada,0
+U004,Consumer,Free,Mobile,USA,true
+U005,Consumer,FREE,Desktop,UK,TRUE
+U006,Enterprise,Enterprise,Desktop,Germany,
+U007,,Basic,Mobile,France,false
+U008,Consumer,Pro,Tablet,Brazil,false
+U009,Enterprise,Enterprise,Desktop,USA,no
+U010,Consumer,Free,Smartwatch,India,true

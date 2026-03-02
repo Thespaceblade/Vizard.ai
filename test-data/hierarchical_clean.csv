@@ -1,0 +1,11 @@
+node_id,parent_id,level,name,department
+N001,,0,CompanyRoot,Corporate
+N002,N001,1,Engineering,Engineering
+N003,N001,1,Sales,Sales
+N004,N001,1,Operations,Operations
+N005,N002,2,BackendTeam,Engineering
+N006,N002,2,FrontendTeam,Engineering
+N007,N003,2,EnterpriseSales,Sales
+N008,N003,2,SMBSales,Sales
+N009,N004,2,Logistics,Operations
+N010,N004,2,CustomerSupport,Operations

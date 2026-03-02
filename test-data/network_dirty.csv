@@ -1,0 +1,12 @@
+source,target,weight,edge_type
+U001,U002,0.8,follows
+U001,U003,0.6,follows
+U002,U002,1.0,follows
+U002,U003,0.7,follows
+U003,U004,high,follows
+U004,U005,0.5,
+U002,U005,,mentions
+U005,U006,0.3,mentions
+U006,U001,0.2,replies
+U003,U006,0.7,replies
+U003,U006,0.7,replies

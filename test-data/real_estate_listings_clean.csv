@@ -1,0 +1,13 @@
+listing_id,address,city,state,zip,latitude,longitude,price_usd,beds,baths,sqft,year_built,property_type,status,days_on_market
+L1001,1208PineSt,Seattle,WA,98101,47.6116,-122.3344,825000,2,2,1180,2008,Condo,Active,19
+L1002,4421StoneWayN,Seattle,WA,98103,47.6622,-122.3429,1295000,4,3,2480,1996,SingleFamily,Active,33
+L1003,901NEMultnomahSt,Portland,OR,97232,45.5336,-122.6581,615000,2,2,1325,2014,Condo,Active,12
+L1004,2715SEHawthorneBlvd,Portland,OR,97214,45.5125,-122.6387,899000,3,2,1760,1982,Townhome,Pending,8
+L1005,1450WLakeSt,Chicago,IL,60607,41.8850,-87.6505,540000,2,2,1205,2005,Condo,Active,27
+L1006,1833NWickerParkAve,Chicago,IL,60622,41.9089,-87.6779,1100000,4,3,2650,1912,SingleFamily,Active,41
+L1007,210BartonSpringsRd,Austin,TX,78704,30.2634,-97.7713,735000,3,2,1680,1999,SingleFamily,Active,22
+L1008,5800BurnetRd,Austin,TX,78756,30.3212,-97.7390,485000,2,1,980,1978,SingleFamily,Pending,15
+L1009,88SW8thSt,Miami,FL,33130,25.7663,-80.1937,690000,2,2,1120,2010,Condo,Active,10
+L1010,350NW26thSt,Miami,FL,33127,25.8018,-80.2009,975000,3,2,1840,1956,SingleFamily,Active,29
+L1011,500BoylstonSt,Boston,MA,02116,42.3510,-71.0746,1200000,2,2,1290,2016,Condo,Active,21
+L1012,75DorchesterAve,Boston,MA,02127,42.3334,-71.0567,1025000,3,2,1580,2003,Townhome,Sold,6

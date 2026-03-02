@@ -1,0 +1,11 @@
+review_id,user_id,text,rating,sentiment
+R001,U001,"Love the new dashboard, very intuitive.",5,positive
+R002,U002,"The app is okay but could be faster.",3,neutral
+R003,U003,"Terrible experience, it keeps crashing.",1,negative
+R004,U004,"Support team was very helpful and quick.",5,positive
+R005,U005,"Features are good, but the UI is confusing.",3,neutral
+R006,U006,"I use it every day, saves me hours.",5,positive
+R007,U007,"Too many bugs on mobile version.",2,negative
+R008,U008,"Setup was simple and documentation clear.",4,positive
+R009,U009,"Not worth the price for my small team.",2,negative
+R010,U010,"Overall solid product with minor issues.",4,positive

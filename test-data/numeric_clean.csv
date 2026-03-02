@@ -1,0 +1,11 @@
+measure_id,experiment_group,day,metric_a,metric_b,metric_c
+M001,control,1,12.4,103.2,0.82
+M002,control,2,11.8,101.5,0.79
+M003,control,3,13.2,104.7,0.84
+M004,control,4,12.9,103.9,0.83
+M005,control,5,12.1,102.4,0.80
+M006,variant,1,14.5,110.3,0.88
+M007,variant,2,15.1,112.0,0.90
+M008,variant,3,14.8,111.2,0.89
+M009,variant,4,15.3,112.7,0.91
+M010,variant,5,14.9,111.8,0.90
