@@ -1,0 +1,39 @@
+# OS and editors
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+*.sublime-*
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Dependencies and build artifacts (per-package ignores below)
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Logs and debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Optional: keep .cursor/CHANGES.md in version control so commits use it
+# (do not ignore .cursor/ or .cursor/CHANGES.md)
