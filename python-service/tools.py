@@ -19,6 +19,16 @@ PLOTLY_THEME_MAP = {
     "corporate": "ggplot2",
 }
 
+# Darker palette for charts on white/light background (better visibility)
+VIZ_PALETTE_LIGHT_BG = [
+    "#1e3a5f",  # deep vizard blue
+    "#0d9488",  # insight teal
+    "#c2410c",  # dark orange
+    "#475569",  # slate gray
+    "#1d4ed8",  # medium blue
+    "#0f766e",  # dark teal
+]
+
 
 def decode_csv_base64(csv_base64: str) -> pd.DataFrame:
     csv_bytes = base64.b64decode(csv_base64)
@@ -111,14 +121,11 @@ def create_static_viz_image(
     if y is None:
         y = defaults["y"]
 
-    if theme == "bold":
-        sns.set_theme(style="whitegrid", palette="deep")
-    elif theme == "corporate":
-        sns.set_theme(style="whitegrid", palette="muted")
-    else:
-        sns.set_theme(style="whitegrid", palette="pastel")
-
+    # White background with darker palette for visibility on light UI
+    sns.set_theme(style="whitegrid", palette=VIZ_PALETTE_LIGHT_BG)
     fig, ax = plt.subplots(figsize=(8, 5), dpi=120)
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
 
     if viz_type == "bar" and x and y:
         if aggregate in {"sum", "mean", "avg"}:
@@ -130,7 +137,7 @@ def create_static_viz_image(
     elif viz_type == "line" and x and y:
         sns.lineplot(data=df, x=x, y=y, ax=ax, marker="o")
     elif viz_type == "scatter" and x and y:
-        sns.scatterplot(data=df, x=x, y=y, ax=ax, s=60, edgecolor="white")
+        sns.scatterplot(data=df, x=x, y=y, ax=ax, s=60, edgecolor="#334155", linewidth=0.6)
     elif viz_type == "histogram" and y:
         sns.histplot(data=df, x=y, ax=ax, kde=True)
     else:
@@ -189,7 +196,7 @@ def create_dynamic_viz_html(
     if y is None:
         y = defaults["y"]
 
-    template = _plotly_template(theme)
+    template = "plotly_white"
     color_col = options.get("color")
 
     if viz_type == "choropleth":
@@ -202,22 +209,27 @@ def create_dynamic_viz_html(
 
     fig = None
     if viz_type == "bar" and x and y:
-        fig = px.bar(working_df, x=x, y=y, color=color_col, template=template)
+        fig = px.bar(working_df, x=x, y=y, color=color_col, template=template, color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
     elif viz_type == "line" and x and y:
-        fig = px.line(working_df, x=x, y=y, color=color_col, template=template, markers=True)
+        fig = px.line(working_df, x=x, y=y, color=color_col, template=template, markers=True, color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
     elif viz_type == "scatter" and x and y:
-        fig = px.scatter(working_df, x=x, y=y, color=color_col, template=template)
+        fig = px.scatter(working_df, x=x, y=y, color=color_col, template=template, color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
     elif viz_type == "histogram" and y:
-        fig = px.histogram(working_df, x=y, template=template, marginal="rug")
+        fig = px.histogram(working_df, x=y, template=template, marginal="rug", color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
     else:
         numeric_cols = list(working_df.select_dtypes(include=[np.number]).columns)
         if numeric_cols:
-            fig = px.histogram(working_df, x=numeric_cols[0], template=template, marginal="rug")
+            fig = px.histogram(working_df, x=numeric_cols[0], template=template, marginal="rug", color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
         else:
-            fig = px.bar(working_df, template=template)
+            fig = px.bar(working_df, template=template, color_discrete_sequence=VIZ_PALETTE_LIGHT_BG)
 
     if fig is not None:
-        fig.update_layout(margin=dict(l=40, r=20, t=40, b=40))
+        fig.update_layout(
+            margin=dict(l=40, r=20, t=40, b=40),
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            font=dict(color="#334155"),
+        )
 
     html = pio.to_html(fig, full_html=True, include_plotlyjs="cdn")
     return html
@@ -238,8 +250,6 @@ def _create_choropleth_html(
     if options is None:
         options = {}
 
-    template = _plotly_template(theme)
-
     if location_col is None or value_col is None:
         cols = list(df.columns)
         non_numeric = [c for c in cols if not np.issubdtype(df[c].dtype, np.number)]
@@ -255,11 +265,16 @@ def _create_choropleth_html(
         locations=location_col,
         locationmode=locationmode,
         color=value_col,
-        template=template,
+        template="plotly_white",
         scope=scope,
-        color_continuous_scale="Viridis",
+        color_continuous_scale=["#e0f2fe", "#0d9488", "#0f766e", "#134e4a"],
     )
-    fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=40, b=0),
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        font=dict(color="#334155"),
+    )
 
     return pio.to_html(fig, full_html=True, include_plotlyjs="cdn")
 

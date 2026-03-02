@@ -31,6 +31,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Import the repo** at [vercel.com/new](https://vercel.com/new). Use the repo root; then in **Project Settings → General** set **Root Directory** to `web`.
+2. **Environment variables** (Settings → Environment Variables):
+   - `GEMINI_API_KEY` – for the agent (required).
+   - `PYTHON_SERVICE_URL` – full URL of your deployed Python API (e.g. `https://your-python-api.up.railway.app`). Omit only if the frontend doesn’t call the Python service.
+3. Deploy; Vercel will run `npm install` and `npm run build` in the `web` directory.

@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
+/* Vizard.ai brand palette */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Brand tokens */
+  --deep-vizard-blue: #1e3a5f;
+  --vizard-blue: #2563eb;
+  --spark-orange: #f97316;
+  --insight-teal: #0d9488;
+  --slate-gray: #475569;
+  --off-white: #f8fafc;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-deep-vizard-blue: var(--deep-vizard-blue);
+  --color-vizard-blue: var(--vizard-blue);
+  --color-spark-orange: var(--spark-orange);
+  --color-insight-teal: var(--insight-teal);
+  --color-slate-gray: var(--slate-gray);
+  --color-off-white: var(--off-white);
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f172a;
+    --foreground: var(--off-white);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
