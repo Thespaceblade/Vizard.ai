@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runAgent } from "@/lib/agent";
+import { runAgent, type AgentResult } from "@/lib/agent";
 
 export const runtime = "nodejs";
+
+function parseSpec(raw: unknown): Record<string, unknown> | null {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object" && raw !== null) return raw as Record<string, unknown>;
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,12 +23,14 @@ export async function POST(req: NextRequest) {
 
     let csvBase64: string | null = null;
     let prompt = "";
+    let spec: Record<string, unknown> | null = null;
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file");
       const promptRaw = formData.get("prompt");
       const csvRaw = formData.get("csvBase64");
+      const specRaw = formData.get("spec");
 
       if (csvRaw && typeof csvRaw === "string") {
         csvBase64 = csvRaw;
@@ -24,13 +40,16 @@ export async function POST(req: NextRequest) {
       }
 
       prompt = typeof promptRaw === "string" ? promptRaw : "";
+      spec = parseSpec(specRaw);
     } else {
       const json = (await req.json()) as {
         csvBase64?: string;
         prompt?: string;
+        spec?: unknown;
       };
       csvBase64 = json.csvBase64 ?? null;
       prompt = json.prompt ?? "";
+      spec = parseSpec(json.spec);
     }
 
     if (!csvBase64) {
@@ -40,9 +59,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await runAgent({ csvBase64, prompt });
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const enqueue = (obj: object) => {
+          controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+        };
+        try {
+          const result = await runAgent({
+            csvBase64,
+            prompt,
+            spec: spec ?? undefined,
+            onPhase: (phase) => enqueue({ type: "phase", phase }),
+          });
+          enqueue({ type: "result", result: result as AgentResult });
+        } catch (err) {
+          console.error(err);
+          const message =
+            err instanceof Error ? err.message : "Unexpected server error";
+          enqueue({ type: "error", error: message });
+        } finally {
+          controller.close();
+        }
+      },
+    });
 
-    return NextResponse.json({ ok: true, result });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "application/x-ndjson",
+        "Transfer-Encoding": "chunked",
+      },
+    });
   } catch (error) {
     console.error(error);
     const message =

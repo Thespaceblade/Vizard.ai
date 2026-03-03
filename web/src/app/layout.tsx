@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Vizard.ai",
-  description: "Aesthetic data visualization from CSV + natural language",
+  description: "Data visualization from CSV and natural language",
 };
 
 export default function RootLayout({

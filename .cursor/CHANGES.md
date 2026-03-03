@@ -2,12 +2,13 @@
 
 This file is updated after every automated change so it can be used for descriptive, conventional commit messages.
 
-**Last updated:** 2025-03-02
+**Last updated:** 2026-03-02
 
 ## Recent changes
 
 _Summary of the most recent automated edits. Use this section when crafting commit messages._
 
+- Implemented Quick Ideas, D3 visualizations, and LLM generate flow: quick ideas use suggestion spec directly (no LLM re-interpretation); agent API accepts optional spec; staged loading messages for generate flow; Python POST /chart-data and D3.js bar/line/scatter/histogram with Plotly fallback for maps.
 - Added `web/vercel.json` and Vercel deployment notes in `web/README.md` (root directory, env vars).
 - Added `.cursor/CHANGES.md` and Cursor rules to log automated changes and use them for conventional commit messages.
 - Added `.cursor/rules/update-changes-after-edit.mdc` and `commit-conventions.mdc` for change logging and commit/push behavior.

@@ -362,6 +362,86 @@ def _create_choropleth_html(
 
 
 # ---------------------------------------------------------------------------
+# Chart data for D3 (no Plotly/matplotlib)
+# ---------------------------------------------------------------------------
+
+
+def get_chart_data(
+    df: pd.DataFrame,
+    viz_type: str,
+    x: Optional[str] = None,
+    y: Optional[str] = None,
+    aggregate: Optional[str] = None,
+    options: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Return chart-ready JSON for bar, line, scatter, histogram. Other types use_plotly=True."""
+    if options is None:
+        options = {}
+
+    defaults = _pick_default_columns(df)
+    if x is None:
+        x = defaults["x"]
+    if y is None:
+        y = defaults["y"]
+
+    # Types that need Plotly (maps, treemap) — return use_plotly so frontend can request HTML
+    if viz_type in ("choropleth", "scatter_geo", "treemap", "heatmap"):
+        return {
+            "spec": {"viz_type": viz_type, "x": x, "y": y},
+            "data": [],
+            "use_plotly": True,
+        }
+
+    working_df = df
+    if aggregate in {"sum", "mean", "avg"} and x and y:
+        agg_func = "sum" if aggregate == "sum" else "mean"
+        working_df = df.groupby(x)[y].agg(agg_func).reset_index()
+
+    if viz_type == "histogram" and y and y in df.columns:
+        values = df[y].dropna().astype(float).tolist()
+        data = [{"value": v} for v in values]
+        return {
+            "spec": {"viz_type": "histogram", "x": None, "y": y},
+            "data": data,
+            "use_plotly": False,
+        }
+
+    if viz_type in ("bar", "line", "scatter") and x and y:
+        if x not in working_df.columns or y not in working_df.columns:
+            return {"spec": {"viz_type": viz_type, "x": x, "y": y}, "data": [], "use_plotly": False}
+        out: List[Dict[str, Any]] = []
+        color_col = options.get("color")
+        if color_col not in working_df.columns:
+            color_col = None
+        for _, row in working_df.iterrows():
+            rec: Dict[str, Any] = {
+                "x": str(row[x]) if pd.notna(row[x]) else "",
+                "y": float(row[y]) if pd.notna(row[y]) else None,
+            }
+            if color_col:
+                rec["color"] = str(row[color_col]) if pd.notna(row.get(color_col)) else ""
+            out.append(rec)
+        return {
+            "spec": {"viz_type": viz_type, "x": x, "y": y},
+            "data": out,
+            "use_plotly": False,
+        }
+
+    # fallback: first numeric column as histogram
+    numeric_cols = list(working_df.select_dtypes(include=[np.number]).columns)
+    if numeric_cols:
+        col = numeric_cols[0]
+        values = working_df[col].dropna().astype(float).tolist()
+        return {
+            "spec": {"viz_type": "histogram", "x": None, "y": col},
+            "data": [{"value": v} for v in values],
+            "use_plotly": False,
+        }
+
+    return {"spec": {"viz_type": viz_type, "x": x, "y": y}, "data": [], "use_plotly": False}
+
+
+# ---------------------------------------------------------------------------
 # Suggestions helper
 # ---------------------------------------------------------------------------
 

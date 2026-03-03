@@ -7,9 +7,16 @@ import {
   type VizSuggestion,
 } from "./tools";
 
+/** Phase ids for workflow-based loading UI. */
+export type AgentPhase = "inspect" | "plan" | "clean" | "render";
+
 export interface AgentInput {
   csvBase64: string;
   prompt: string;
+  /** When provided (e.g. from a quick idea), skip LLM and use this spec directly. */
+  spec?: Partial<VizSpec> | null;
+  /** Called before each pipeline step so the UI can show phase-specific loading. */
+  onPhase?: (phase: AgentPhase) => void;
 }
 
 export interface AgentStaticResult {
@@ -17,6 +24,7 @@ export interface AgentStaticResult {
   imageBase64: string;
   explanation?: string;
   suggestions?: VizSuggestion[];
+  spec?: VizSpec;
 }
 
 export interface AgentDynamicResult {
@@ -24,6 +32,7 @@ export interface AgentDynamicResult {
   html: string;
   explanation?: string;
   suggestions?: VizSuggestion[];
+  spec?: VizSpec;
 }
 
 export type AgentResult = AgentStaticResult | AgentDynamicResult;
@@ -265,20 +274,48 @@ async function deriveSpecWithLLM(
   };
 }
 
-export async function runAgent(input: AgentInput): Promise<AgentResult> {
-  const { csvBase64, prompt } = input;
+function suggestionSpecToFullSpec(partial: Partial<VizSpec>): VizSpec {
+  return {
+    viz_type: (partial.viz_type as VizSpec["viz_type"]) ?? "bar",
+    x: partial.x ?? null,
+    y: partial.y ?? null,
+    aggregate: partial.aggregate ?? null,
+    theme: (partial.theme as VizSpec["theme"]) ?? "minimal",
+    options: partial.options ?? {},
+    cleaning_instructions: partial.cleaning_instructions ?? null,
+    explanation: partial.explanation ?? null,
+    dynamic:
+      partial.dynamic ??
+      (partial.viz_type === "choropleth" ||
+        partial.viz_type === "scatter_geo" ||
+        partial.viz_type === "treemap"),
+  };
+}
 
+export async function runAgent(input: AgentInput): Promise<AgentResult> {
+  const { csvBase64, prompt, spec: inputSpec, onPhase } = input;
+
+  onPhase?.("inspect");
   const insight = await inspectData(csvBase64);
-  const spec = await deriveSpecWithLLM(prompt, insight);
+
+  let spec: VizSpec;
+  if (inputSpec) {
+    spec = suggestionSpecToFullSpec(inputSpec);
+  } else {
+    onPhase?.("plan");
+    spec = await deriveSpecWithLLM(prompt, insight);
+  }
 
   let workingCsv = csvBase64;
   if (spec.cleaning_instructions) {
+    onPhase?.("clean");
     const cleaned = await cleanData(csvBase64, spec.cleaning_instructions);
     workingCsv = cleaned.csv_base64;
   }
 
   const suggestions = insight.suggestions;
 
+  onPhase?.("render");
   if (spec.dynamic) {
     const dynamic = await createDynamicViz(workingCsv, spec);
     return {
@@ -286,6 +323,7 @@ export async function runAgent(input: AgentInput): Promise<AgentResult> {
       html: dynamic.html,
       explanation: spec.explanation ?? undefined,
       suggestions,
+      spec,
     };
   }
 
@@ -295,5 +333,6 @@ export async function runAgent(input: AgentInput): Promise<AgentResult> {
     imageBase64: viz.image_base64,
     explanation: spec.explanation ?? undefined,
     suggestions,
+    spec,
   };
 }

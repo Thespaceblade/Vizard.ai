@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { D3Chart } from "@/components/D3Chart";
+import { getChartData, type VizSpec } from "@/lib/tools";
 
 interface VizSuggestion {
   viz_type: string;
@@ -16,17 +18,37 @@ type AgentResult =
       imageBase64: string;
       explanation?: string;
       suggestions?: VizSuggestion[];
+      spec?: { viz_type: string; x?: string | null; y?: string | null; [k: string]: unknown };
     }
   | {
       kind: "dynamic";
       html: string;
       explanation?: string;
       suggestions?: VizSuggestion[];
+      spec?: { viz_type: string; x?: string | null; y?: string | null; [k: string]: unknown };
     };
 
 type AgentResponse =
   | { ok: true; result: AgentResult }
   | { ok: false; error: string };
+
+type LoadingPhase = "inspect" | "plan" | "clean" | "render";
+
+type StreamEvent =
+  | { type: "phase"; phase: LoadingPhase }
+  | { type: "result"; result: AgentResult }
+  | { type: "error"; error: string };
+
+const PHASE_ORDER: Record<LoadingPhase, number> = {
+  inspect: 0,
+  plan: 1,
+  clean: 2,
+  render: 3,
+};
+
+function phaseOrder(phase: LoadingPhase): number {
+  return PHASE_ORDER[phase];
+}
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -40,11 +62,50 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<VizSuggestion[]>([]);
   const [downloadName, setDownloadName] = useState("vizard.png");
   const [embedCopied, setEmbedCopied] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase | null>(null);
+  const [chartData, setChartData] = useState<{
+    spec: { viz_type: string; x: string | null; y: string | null };
+    data: Array<{ x?: string; y?: number; value?: number; color?: string }>;
+    use_plotly: boolean;
+  } | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const loadingPhaseMessages: Record<LoadingPhase, string> = {
+    inspect: "Analyzing CSV…",
+    plan: "Choosing chart type…",
+    clean: "Cleaning data…",
+    render: "Generating visualization…",
+  };
+
+  const D3_VIZ_TYPES = ["bar", "line", "scatter", "histogram"];
+
+  useEffect(() => {
+    if (
+      result?.kind !== "dynamic" ||
+      !result.spec ||
+      !D3_VIZ_TYPES.includes(result.spec.viz_type) ||
+      !csvBase64
+    ) {
+      setChartData(null);
+      return;
+    }
+    let cancelled = false;
+    getChartData(csvBase64, result.spec as VizSpec)
+      .then((res) => {
+        if (!cancelled && !res.use_plotly) setChartData(res);
+        else if (!cancelled) setChartData(null);
+      })
+      .catch(() => {
+        if (!cancelled) setChartData(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [result?.kind, result?.spec, csvBase64]);
+
   const callAgent = useCallback(
-    async (overridePrompt?: string) => {
+    async (overridePrompt?: string, spec?: VizSuggestion | null) => {
       const activePrompt = overridePrompt ?? prompt;
       const activeCsv = csvBase64;
 
@@ -55,8 +116,10 @@ export default function Home() {
 
       setError(null);
       setResult(null);
+      setChartData(null);
       setEmbedCopied(false);
       setIsSubmitting(true);
+      setLoadingPhase(null);
 
       try {
         const formData = new FormData();
@@ -66,32 +129,117 @@ export default function Home() {
           formData.append("csvBase64", activeCsv);
         }
         formData.append("prompt", activePrompt);
+        if (spec) {
+          formData.append(
+            "spec",
+            JSON.stringify({
+              viz_type: spec.viz_type,
+              x: spec.x ?? null,
+              y: spec.y ?? null,
+            }),
+          );
+        }
 
         const res = await fetch("/api/agent", {
           method: "POST",
           body: formData,
         });
 
-        const data = (await res.json()) as AgentResponse;
-        if (!data.ok) {
-          throw new Error(
-            data.error || "Agent failed to generate visualization.",
-          );
+        if (!res.ok) {
+          const data = (await res.json()) as AgentResponse;
+          if (!data.ok && "error" in data) {
+            setError(data.error || "Agent failed to generate visualization.");
+          } else {
+            setError("Agent failed to generate visualization.");
+          }
+          setIsSubmitting(false);
+          setLoadingPhase(null);
+          return;
         }
 
-        setResult(data.result);
-        setSuggestions(data.result.suggestions ?? []);
-
-        if (file?.name) {
-          const base = file.name.replace(/\.[^.]+$/, "");
-          setDownloadName(`${base}-vizard.png`);
+        const contentType = res.headers.get("Content-Type") ?? "";
+        if (!contentType.includes("ndjson") || !res.body) {
+          const data = (await res.json()) as AgentResponse;
+          if (data.ok && "result" in data) {
+            setResult(data.result);
+            setSuggestions(data.result.suggestions ?? []);
+            if (file?.name) {
+              const base = file.name.replace(/\.[^.]+$/, "");
+              setDownloadName(`${base}-vizard.png`);
+            }
+          } else if (!data.ok && "error" in data) {
+            setError(data.error);
+          }
+          setIsSubmitting(false);
+          setLoadingPhase(null);
+          return;
         }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let done = false;
+
+        while (!done) {
+          const { value, done: chunkDone } = await reader.read();
+          done = chunkDone;
+          if (value) buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const event = JSON.parse(trimmed) as StreamEvent;
+              if (event.type === "phase") {
+                setLoadingPhase(event.phase);
+              } else if (event.type === "result") {
+                setResult(event.result);
+                setSuggestions(event.result.suggestions ?? []);
+                if (file?.name) {
+                  const base = file.name.replace(/\.[^.]+$/, "");
+                  setDownloadName(`${base}-vizard.png`);
+                }
+                done = true;
+                break;
+              } else if (event.type === "error") {
+                setError(event.error || "Agent failed to generate visualization.");
+                done = true;
+                break;
+              }
+            } catch {
+              // skip malformed lines
+            }
+          }
+        }
+
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer.trim()) as StreamEvent;
+            if (event.type === "phase") setLoadingPhase(event.phase);
+            else if (event.type === "result") {
+              setResult(event.result);
+              setSuggestions(event.result.suggestions ?? []);
+              if (file?.name) {
+                const base = file.name.replace(/\.[^.]+$/, "");
+                setDownloadName(`${base}-vizard.png`);
+              }
+            } else if (event.type === "error") {
+              setError(event.error || "Agent failed to generate visualization.");
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        setIsSubmitting(false);
+        setLoadingPhase(null);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unexpected error occurred.";
         setError(message);
-      } finally {
         setIsSubmitting(false);
+        setLoadingPhase(null);
       }
     },
     [csvBase64, file, prompt],
@@ -119,9 +267,8 @@ export default function Home() {
   }
 
   function handleSuggestionClick(s: VizSuggestion) {
-    const newPrompt = `${s.viz_type} chart: x=${s.x ?? "auto"}, y=${s.y ?? "auto"}`;
-    setPrompt(newPrompt);
-    callAgent(newPrompt);
+    setPrompt(s.label);
+    callAgent(s.label, s);
   }
 
   async function handleCopyEmbed() {
@@ -147,13 +294,57 @@ export default function Home() {
         method: "POST",
         body: formData,
       });
-      const data = (await res.json()) as AgentResponse;
-      if (!data.ok || data.result.kind !== "static") return;
-
-      const link = document.createElement("a");
-      link.href = `data:application/pdf;base64,${data.result.imageBase64}`;
-      link.download = downloadName.replace(/\.png$/, ".pdf");
-      link.click();
+      if (!res.ok) return;
+      const contentType = res.headers.get("Content-Type") ?? "";
+      if (!contentType.includes("ndjson") || !res.body) {
+        const data = (await res.json()) as AgentResponse;
+        if (data.ok && "result" in data && data.result.kind === "static") {
+          const link = document.createElement("a");
+          link.href = `data:application/pdf;base64,${data.result.imageBase64}`;
+          link.download = downloadName.replace(/\.png$/, ".pdf");
+          link.click();
+        }
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (value) buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const event = JSON.parse(trimmed) as StreamEvent;
+            if (event.type === "result" && event.result.kind === "static") {
+              const link = document.createElement("a");
+              link.href = `data:application/pdf;base64,${event.result.imageBase64}`;
+              link.download = downloadName.replace(/\.png$/, ".pdf");
+              link.click();
+              return;
+            }
+          } catch {
+            // skip
+          }
+        }
+        if (done) break;
+      }
+      if (buffer.trim()) {
+        try {
+          const event = JSON.parse(buffer.trim()) as StreamEvent;
+          if (event.type === "result" && event.result.kind === "static") {
+            const link = document.createElement("a");
+            link.href = `data:application/pdf;base64,${event.result.imageBase64}`;
+            link.download = downloadName.replace(/\.png$/, ".pdf");
+            link.click();
+          }
+        } catch {
+          // ignore
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -182,13 +373,13 @@ export default function Home() {
               Vizard.ai
             </h1>
             <p className="text-sm text-off-white/80 mt-1 font-normal">
-              Upload a CSV, describe the visualization, and let the agent craft
-              an aesthetic chart for you.
+              Upload a CSV, describe the visualization, and the agent will
+              create the right chart.
             </p>
           </div>
         </div>
         <span className="inline-flex items-center rounded-full border border-off-white/30 px-3 py-1 text-xs font-medium text-off-white">
-          Aesthetic Data Visualization
+          Charts from natural language
         </span>
       </header>
 
@@ -284,7 +475,11 @@ export default function Home() {
                 Visualization Preview
               </h2>
               <span className="text-[10px] uppercase tracking-wide text-slate-gray/70">
-                {isDynamic ? "Interactive (Plotly)" : "Static PNG"}
+                {isDynamic
+                  ? chartData && !chartData.use_plotly
+                    ? "Interactive (D3)"
+                    : "Interactive (Plotly)"
+                  : "Static PNG"}
               </span>
             </div>
 
@@ -292,11 +487,31 @@ export default function Home() {
               {isSubmitting ? (
                 <div className="flex flex-col items-center justify-center gap-4 w-full py-12">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-gray/20 border-t-spark-orange" aria-hidden />
-                  <p className="text-sm text-slate-gray font-medium">Preparing your visualization…</p>
-                  <div className="flex gap-1.5 mt-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-gray/40 animate-[pulse_1s_ease-in-out_infinite]" style={{ animationDelay: "0ms" }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-insight-teal/60 animate-[pulse_1s_ease-in-out_infinite]" style={{ animationDelay: "150ms" }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-spark-orange animate-[pulse_1s_ease-in-out_infinite]" style={{ animationDelay: "300ms" }} />
+                  <p className="text-sm text-slate-gray font-medium transition-opacity duration-200" key={loadingPhase ?? "initial"}>
+                    {loadingPhase === "inspect"
+                      ? "Reading your data…"
+                      : loadingPhase === "plan"
+                        ? "Choosing chart type and axes…"
+                        : loadingPhase === "clean"
+                          ? "Cleaning data…"
+                          : loadingPhase === "render"
+                            ? "Rendering chart…"
+                            : "Preparing…"}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2" aria-hidden>
+                    {(["inspect", "plan", "clean", "render"] as const).map((phase, i) => (
+                      <span
+                        key={phase}
+                        className={`h-2 w-2 rounded-full transition-colors duration-200 ${
+                          loadingPhase === phase
+                            ? "bg-spark-orange scale-110"
+                            : (loadingPhase && phaseOrder(loadingPhase) > i)
+                              ? "bg-insight-teal/70"
+                              : "bg-slate-gray/30"
+                        }`}
+                        title={phase}
+                      />
+                    ))}
                   </div>
                 </div>
               ) : isStatic && result?.imageBase64 ? (
@@ -306,6 +521,15 @@ export default function Home() {
                   alt="Generated visualization"
                   className="max-h-[400px] w-full object-contain"
                 />
+              ) : chartData && !chartData.use_plotly ? (
+                <div className="w-full min-h-[320px] flex items-center justify-center p-2">
+                  <D3Chart
+                    spec={chartData.spec}
+                    data={chartData.data}
+                    width={600}
+                    height={360}
+                  />
+                </div>
               ) : isDynamic && result?.html ? (
                 <iframe
                   ref={iframeRef}
@@ -316,8 +540,8 @@ export default function Home() {
                 />
               ) : (
                 <p className="text-xs text-slate-gray/70 text-center px-6 font-normal">
-                  Upload a CSV and describe your ideal chart to see an aesthetic
-                  visualization appear here.
+                  Upload a CSV and describe your ideal chart to see your
+                  visualization here.
                 </p>
               )}
             </div>
@@ -344,7 +568,7 @@ export default function Home() {
                     </button>
                   </>
                 )}
-                {isDynamic && (
+                {isDynamic && (!chartData || chartData.use_plotly) && (
                   <button
                     type="button"
                     onClick={handleCopyEmbed}
@@ -372,7 +596,7 @@ export default function Home() {
 
         <footer className="mt-6 flex items-center justify-between text-[11px] text-slate-gray/70 font-normal">
           <span>Vizard.ai</span>
-          <span>Static + Dynamic + Maps + Export</span>
+          <span>PNG, PDF, interactive, maps</span>
         </footer>
       </main>
     </div>

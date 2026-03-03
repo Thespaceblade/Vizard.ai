@@ -10,6 +10,7 @@ from tools import (
     create_static_viz_image,
     decode_csv_base64,
     encode_csv_base64,
+    get_chart_data,
     inspect_dataframe,
     suggest_visualizations,
 )
@@ -63,6 +64,17 @@ class DynamicVizRequest(BaseModel):
 
 class DynamicVizResponse(BaseModel):
     html: str
+
+
+class ChartDataRequest(BaseModel):
+    csv_base64: str
+    spec: VizOptions
+
+
+class ChartDataResponse(BaseModel):
+    spec: Dict[str, Any]
+    data: List[Dict[str, Any]]
+    use_plotly: bool = False
 
 
 app = FastAPI(title="Vizard.ai Python Viz Service")
@@ -132,6 +144,25 @@ def dynamic_viz(req: DynamicVizRequest) -> DynamicVizResponse:
     )
 
     return DynamicVizResponse(html=html)
+
+
+@app.post("/chart-data", response_model=ChartDataResponse)
+def chart_data(req: ChartDataRequest) -> ChartDataResponse:
+    df = decode_csv_base64(req.csv_base64)
+    spec = req.spec
+    result = get_chart_data(
+        df=df,
+        viz_type=spec.viz_type,
+        x=spec.x,
+        y=spec.y,
+        aggregate=spec.aggregate,
+        options=spec.options,
+    )
+    return ChartDataResponse(
+        spec=result["spec"],
+        data=result["data"],
+        use_plotly=result.get("use_plotly", False),
+    )
 
 
 if __name__ == "__main__":

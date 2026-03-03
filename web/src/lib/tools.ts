@@ -158,3 +158,30 @@ export async function createDynamicViz(
     signal,
   );
 }
+
+export interface ChartDataApiResponse {
+  spec: { viz_type: string; x: string | null; y: string | null };
+  data: Array<{ x?: string; y?: number; value?: number; color?: string }>;
+  use_plotly: boolean;
+}
+
+/** Fetch chart-ready data for D3 (call from client; uses Next.js API). */
+export async function getChartData(
+  csvBase64: string,
+  spec: VizSpec,
+  signal?: AbortSignal,
+): Promise<ChartDataApiResponse> {
+  const base =
+    typeof window !== "undefined" ? "" : process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const res = await fetch(`${base}/api/chart-data`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csvBase64, spec }),
+    signal,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((err as { error?: string }).error ?? "Chart data failed");
+  }
+  return (await res.json()) as ChartDataApiResponse;
+}
