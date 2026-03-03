@@ -5,15 +5,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from tools import (
-    basic_clean_dataframe,
+    clean_dataframe_with_instructions,
     create_dynamic_viz_html,
     create_static_viz_image,
     decode_csv_base64,
+    decode_table_base64,
     encode_csv_base64,
     get_chart_data,
     inspect_dataframe,
     suggest_visualizations,
 )
+
+
+class ConvertToCsvRequest(BaseModel):
+    file_base64: str
+    format: str = "csv"  # "csv" | "xlsx"
+
+
+class ConvertToCsvResponse(BaseModel):
+    csv_base64: str
 
 
 class InspectRequest(BaseModel):
@@ -92,6 +102,14 @@ def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/convert-to-csv", response_model=ConvertToCsvResponse)
+def convert_to_csv(req: ConvertToCsvRequest) -> ConvertToCsvResponse:
+    """Convert uploaded file (xlsx or csv) to CSV base64. For xlsx, first sheet is used."""
+    df = decode_table_base64(req.file_base64, req.format)
+    csv_base64 = encode_csv_base64(df)
+    return ConvertToCsvResponse(csv_base64=csv_base64)
+
+
 @app.post("/inspect", response_model=InspectResponse)
 def inspect(req: InspectRequest) -> InspectResponse:
     df = decode_csv_base64(req.csv_base64)
@@ -103,7 +121,7 @@ def inspect(req: InspectRequest) -> InspectResponse:
 @app.post("/clean", response_model=CleanResponse)
 def clean(req: CleanRequest) -> CleanResponse:
     df = decode_csv_base64(req.csv_base64)
-    cleaned = basic_clean_dataframe(df)
+    cleaned = clean_dataframe_with_instructions(df, req.instructions)
     cleaned_base64 = encode_csv_base64(cleaned)
     return CleanResponse(csv_base64=cleaned_base64)
 

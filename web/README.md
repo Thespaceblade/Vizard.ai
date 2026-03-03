@@ -33,6 +33,6 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 1. **Import the repo** at [vercel.com/new](https://vercel.com/new). Use the repo root; then in **Project Settings → General** set **Root Directory** to `web`.
 2. **Environment variables** (Settings → Environment Variables):
-   - `GEMINI_API_KEY` – for the agent (required).
+   - `GEMINI_API_KEY` or `OPENAI_API_KEY` – for the chart-planning agent (at least one; OpenAI is tried first if both are set). Optional: `GEMINI_MODEL`, `OPENAI_MODEL` (defaults: gemini-2.0-flash, gpt-4o-mini), `AGENT_REQUIRE_LLM` (`true` to error instead of falling back to heuristic planning).
    - `PYTHON_SERVICE_URL` – full URL of your deployed Python API (e.g. `https://your-python-api.up.railway.app`). Omit only if the frontend doesn’t call the Python service.
 3. Deploy; Vercel will run `npm install` and `npm run build` in the `web` directory.

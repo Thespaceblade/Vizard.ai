@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runAgent, type AgentResult } from "@/lib/agent";
+import { runAgent, runCodeGenAgent, type AgentResult } from "@/lib/agent";
 
 export const runtime = "nodejs";
+
+const PYTHON_SERVICE_URL =
+  process.env.PYTHON_SERVICE_URL || "http://localhost:8000";
 
 function parseSpec(raw: unknown): Record<string, unknown> | null {
   if (raw == null) return null;
@@ -17,6 +20,23 @@ function parseSpec(raw: unknown): Record<string, unknown> | null {
   return null;
 }
 
+async function ensureCsvBase64(
+  fileBase64: string,
+  fileName?: string,
+): Promise<string> {
+  if (fileName && fileName.toLowerCase().endsWith(".xlsx")) {
+    const res = await fetch(`${PYTHON_SERVICE_URL}/convert-to-csv`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_base64: fileBase64, format: "xlsx" }),
+    });
+    if (!res.ok) throw new Error("Excel conversion failed");
+    const data = (await res.json()) as { csv_base64: string };
+    return data.csv_base64;
+  }
+  return fileBase64;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get("content-type") || "";
@@ -24,6 +44,7 @@ export async function POST(req: NextRequest) {
     let csvBase64: string | null = null;
     let prompt = "";
     let spec: Record<string, unknown> | null = null;
+    let fileName: string | undefined;
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
@@ -37,6 +58,7 @@ export async function POST(req: NextRequest) {
       } else if (file && file instanceof File) {
         const bytes = await file.arrayBuffer();
         csvBase64 = Buffer.from(bytes).toString("base64");
+        fileName = file.name;
       }
 
       prompt = typeof promptRaw === "string" ? promptRaw : "";
@@ -59,6 +81,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    csvBase64 = await ensureCsvBase64(csvBase64, fileName);
+
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -66,7 +90,10 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
         };
         try {
-          const result = await runAgent({
+          // Use D3 code generation for free-form prompts (no preset spec)
+          // Quick-suggestion specs still use the legacy VizSpec path
+          const agentFn = spec ? runAgent : runCodeGenAgent;
+          const result = await agentFn({
             csvBase64,
             prompt,
             spec: spec ?? undefined,

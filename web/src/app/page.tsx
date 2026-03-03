@@ -14,19 +14,25 @@ interface VizSuggestion {
 
 type AgentResult =
   | {
-      kind: "static";
-      imageBase64: string;
-      explanation?: string;
-      suggestions?: VizSuggestion[];
-      spec?: { viz_type: string; x?: string | null; y?: string | null; [k: string]: unknown };
-    }
+    kind: "static";
+    imageBase64: string;
+    explanation?: string;
+    suggestions?: VizSuggestion[];
+    spec?: { viz_type: string; x?: string | null; y?: string | null;[k: string]: unknown };
+  }
   | {
-      kind: "dynamic";
-      html: string;
-      explanation?: string;
-      suggestions?: VizSuggestion[];
-      spec?: { viz_type: string; x?: string | null; y?: string | null; [k: string]: unknown };
-    };
+    kind: "dynamic";
+    html: string;
+    explanation?: string;
+    suggestions?: VizSuggestion[];
+    spec?: { viz_type: string; x?: string | null; y?: string | null;[k: string]: unknown };
+  }
+  | {
+    kind: "d3code";
+    html: string;
+    explanation?: string;
+    suggestions?: VizSuggestion[];
+  };
 
 type AgentResponse =
   | { ok: true; result: AgentResult }
@@ -102,7 +108,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [result?.kind, result?.spec, csvBase64]);
+  }, [result?.kind, result && 'spec' in result ? result.spec : undefined, csvBase64]);
 
   const callAgent = useCallback(
     async (overridePrompt?: string, spec?: VizSuggestion | null) => {
@@ -257,12 +263,25 @@ export default function Home() {
     setCsvBase64(null);
 
     if (selected) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const b64 = (reader.result as string).split(",")[1];
-        setCsvBase64(b64);
-      };
-      reader.readAsDataURL(selected);
+      const isXlsx = selected.name.toLowerCase().endsWith(".xlsx");
+      if (isXlsx) {
+        const formData = new FormData();
+        formData.append("file", selected);
+        fetch("/api/upload", { method: "POST", body: formData })
+          .then((r) => r.json())
+          .then((d: { ok?: boolean; csvBase64?: string; error?: string }) => {
+            if (d.ok && d.csvBase64) setCsvBase64(d.csvBase64);
+            else setError(d.error ?? "Failed to load Excel file.");
+          })
+          .catch(() => setError("Failed to load Excel file."));
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const b64 = (reader.result as string).split(",")[1];
+          setCsvBase64(b64);
+        };
+        reader.readAsDataURL(selected);
+      }
     }
   }
 
@@ -352,6 +371,7 @@ export default function Home() {
 
   const isStatic = result?.kind === "static";
   const isDynamic = result?.kind === "dynamic";
+  const isD3Code = result?.kind === "d3code";
 
   return (
     <div className="min-h-screen bg-deep-vizard-blue flex flex-col items-center px-4 py-8 relative">
@@ -393,12 +413,12 @@ export default function Home() {
           <section className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-gray">
-                CSV Upload
+                Data upload
               </label>
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-gray/30 bg-white px-4 py-3 text-sm text-slate-gray hover:border-vizard-blue/50 transition-colors">
                 <div className="flex flex-col">
                   <span className="font-medium">
-                    {previewName ?? "Choose a .csv file"}
+                    {previewName ?? "Choose a CSV or Excel file"}
                   </span>
                   <span className="text-xs text-slate-gray/70">
                     Max a few MB for best performance.
@@ -409,7 +429,7 @@ export default function Home() {
                 </span>
                 <input
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="hidden"
                   onChange={handleFileChange}
                 />
@@ -475,11 +495,13 @@ export default function Home() {
                 Visualization Preview
               </h2>
               <span className="text-[10px] uppercase tracking-wide text-slate-gray/70">
-                {isDynamic
-                  ? chartData && !chartData.use_plotly
-                    ? "Interactive (D3)"
-                    : "Interactive (Plotly)"
-                  : "Static PNG"}
+                {isD3Code
+                  ? "Custom D3"
+                  : isDynamic
+                    ? chartData && !chartData.use_plotly
+                      ? "Interactive (D3)"
+                      : "Interactive (Plotly)"
+                    : "Static PNG"}
               </span>
             </div>
 
@@ -502,13 +524,12 @@ export default function Home() {
                     {(["inspect", "plan", "clean", "render"] as const).map((phase, i) => (
                       <span
                         key={phase}
-                        className={`h-2 w-2 rounded-full transition-colors duration-200 ${
-                          loadingPhase === phase
-                            ? "bg-spark-orange scale-110"
-                            : (loadingPhase && phaseOrder(loadingPhase) > i)
-                              ? "bg-insight-teal/70"
-                              : "bg-slate-gray/30"
-                        }`}
+                        className={`h-2 w-2 rounded-full transition-colors duration-200 ${loadingPhase === phase
+                          ? "bg-spark-orange scale-110"
+                          : (loadingPhase && phaseOrder(loadingPhase) > i)
+                            ? "bg-insight-teal/70"
+                            : "bg-slate-gray/30"
+                          }`}
                         title={phase}
                       />
                     ))}
@@ -520,6 +541,13 @@ export default function Home() {
                   src={`data:image/png;base64,${result.imageBase64}`}
                   alt="Generated visualization"
                   className="max-h-[400px] w-full object-contain"
+                />
+              ) : isD3Code && result?.html ? (
+                <iframe
+                  srcDoc={result.html}
+                  sandbox="allow-scripts"
+                  className="h-[500px] w-full rounded-lg border-0"
+                  title="Custom D3.js visualization"
                 />
               ) : chartData && !chartData.use_plotly ? (
                 <div className="w-full min-h-[320px] flex items-center justify-center p-2">
@@ -575,6 +603,24 @@ export default function Home() {
                     className="inline-flex items-center rounded-full bg-spark-orange/10 border border-spark-orange/40 px-4 py-2 text-xs font-semibold text-spark-orange hover:bg-spark-orange hover:text-white transition-colors"
                   >
                     {embedCopied ? "Copied!" : "Copy Embed Code"}
+                  </button>
+                )}
+                {isD3Code && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (result?.kind !== "d3code") return;
+                      try {
+                        await navigator.clipboard.writeText(result.html);
+                        setEmbedCopied(true);
+                        setTimeout(() => setEmbedCopied(false), 2000);
+                      } catch {
+                        setError("Failed to copy to clipboard.");
+                      }
+                    }}
+                    className="inline-flex items-center rounded-full bg-spark-orange/10 border border-spark-orange/40 px-4 py-2 text-xs font-semibold text-spark-orange hover:bg-spark-orange hover:text-white transition-colors"
+                  >
+                    {embedCopied ? "Copied!" : "Copy D3 Code"}
                   </button>
                 )}
               </div>

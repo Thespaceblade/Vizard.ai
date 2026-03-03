@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+const PYTHON_SERVICE_URL =
+  process.env.PYTHON_SERVICE_URL || "http://localhost:8000";
+
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get("content-type") || "";
@@ -18,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     if (!file || !(file instanceof File)) {
       return NextResponse.json(
-        { ok: false, error: "CSV file is required" },
+        { ok: false, error: "CSV or Excel file is required" },
         { status: 400 },
       );
     }
@@ -26,8 +29,28 @@ export async function POST(req: NextRequest) {
     const name = file.name;
     const bytes = await file.arrayBuffer();
     const size = bytes.byteLength;
+    const isXlsx = name.toLowerCase().endsWith(".xlsx");
 
-    const csvBase64 = Buffer.from(bytes).toString("base64");
+    let csvBase64: string;
+    if (isXlsx) {
+      const fileBase64 = Buffer.from(bytes).toString("base64");
+      const convertRes = await fetch(`${PYTHON_SERVICE_URL}/convert-to-csv`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_base64: fileBase64, format: "xlsx" }),
+      });
+      if (!convertRes.ok) {
+        const err = await convertRes.text();
+        return NextResponse.json(
+          { ok: false, error: `Excel conversion failed: ${err}` },
+          { status: 502 },
+        );
+      }
+      const data = (await convertRes.json()) as { csv_base64: string };
+      csvBase64 = data.csv_base64;
+    } else {
+      csvBase64 = Buffer.from(bytes).toString("base64");
+    }
 
     return NextResponse.json({
       ok: true,

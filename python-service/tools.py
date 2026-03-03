@@ -36,6 +36,19 @@ def decode_csv_base64(csv_base64: str) -> pd.DataFrame:
     return pd.read_csv(io.StringIO(csv_str))
 
 
+def decode_xlsx_base64(xlsx_base64: str) -> pd.DataFrame:
+    """Decode base64-encoded xlsx file and return first sheet as DataFrame."""
+    xlsx_bytes = base64.b64decode(xlsx_base64)
+    return pd.read_excel(io.BytesIO(xlsx_bytes), engine="openpyxl")
+
+
+def decode_table_base64(file_base64: str, format: str = "csv") -> pd.DataFrame:
+    """Decode base64 file as CSV or xlsx (first sheet). format is 'csv' or 'xlsx'."""
+    if format and str(format).lower() == "xlsx":
+        return decode_xlsx_base64(file_base64)
+    return decode_csv_base64(file_base64)
+
+
 def encode_csv_base64(df: pd.DataFrame) -> str:
     buffer = io.StringIO()
     df.to_csv(buffer, index=False)
@@ -81,6 +94,40 @@ def basic_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             if not mode_series.empty:
                 df[col] = df[col].fillna(mode_series.iloc[0])
 
+    return df
+
+
+def clean_dataframe_with_instructions(
+    df: pd.DataFrame,
+    instructions: Optional[str] = None,
+) -> pd.DataFrame:
+    """Apply basic cleaning, then instruction-based steps from LLM cleaning_instructions."""
+    df = basic_clean_dataframe(df)
+    if not instructions or not str(instructions).strip():
+        return df
+
+    text = str(instructions).lower().strip()
+    # Drop duplicates
+    if "duplicate" in text or "dedupe" in text:
+        df = df.drop_duplicates()
+    # Drop rows with any nulls (instead of filling)
+    if "drop null" in text or "remove null" in text or "drop na" in text or "remove na" in text:
+        df = df.dropna()
+    # Strip whitespace from string columns
+    if "strip" in text or "trim" in text or "whitespace" in text:
+        str_cols = df.select_dtypes(include=["object"]).columns
+        for col in str_cols:
+            df[col] = df[col].astype(str).str.strip()
+    # Lowercase string columns
+    if "lower" in text or "lowercase" in text:
+        str_cols = df.select_dtypes(include=["object"]).columns
+        for col in str_cols:
+            df[col] = df[col].astype(str).str.lower()
+    # Uppercase string columns
+    if "upper" in text or "uppercase" in text:
+        str_cols = df.select_dtypes(include=["object"]).columns
+        for col in str_cols:
+            df[col] = df[col].astype(str).str.upper()
     return df
 
 
