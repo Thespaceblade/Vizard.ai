@@ -1,0 +1,17 @@
+---
+description: Update CHANGES.md after every automated change
+alwaysApply: true
+---
+
+# Update change log after automated edits
+
+After making **any** automated change to the codebase (edits, new files, refactors, config):
+
+1. **Update** `IDE/CHANGES.md`:
+   - Set **Last updated** to the current date (YYYY-MM-DD).
+   - Under **Recent changes**, append a short bullet for what was done (e.g. "Add root .gitignore and docs/SETUP.md for partner onboarding").
+   - Keep the list to the last 5–10 items; drop older ones if it grows long.
+
+2. Write entries in **past tense**, concise, so they can be reused as commit message bodies (e.g. "Added Python service README with run instructions" → commit: `docs(python-service): add README with run instructions`).
+
+This file is the single source of truth for generating descriptive, standardized commit messages (feat/fix/docs/chore/etc.) when committing or pushing.
