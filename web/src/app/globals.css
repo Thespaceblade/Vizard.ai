@@ -1,40 +1,62 @@
 @import "tailwindcss";
 
-/* Vizard.ai brand palette */
+/* Vizard.ai — SaaS Analytics Dashboard */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* Brand tokens */
-  --deep-vizard-blue: #1e3a5f;
-  --vizard-blue: #2563eb;
-  --spark-orange: #f97316;
-  --insight-teal: #0d9488;
-  --slate-gray: #475569;
-  --off-white: #f8fafc;
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+
+  /* Brand Colors */
+  --brand-primary: #6366F1;
+  --brand-primary-dark: #4F46E5;
+  --brand-green: #10B981;
+  --brand-green-dark: #059669;
+  --brand-purple: #8B5CF6;
+  --brand-blue: #3B82F6;
+  --brand-cyan: #06B6D4;
+
+  /* Glass Tokens */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-deep-vizard-blue: var(--deep-vizard-blue);
-  --color-vizard-blue: var(--vizard-blue);
-  --color-spark-orange: var(--spark-orange);
-  --color-insight-teal: var(--insight-teal);
-  --color-slate-gray: var(--slate-gray);
-  --color-off-white: var(--off-white);
-  --font-sans: var(--font-inter);
-  --font-mono: ui-monospace, monospace;
-}
+  --color-primary: var(--brand-primary);
+  --color-primary-dark: var(--brand-primary-dark);
+  --color-green: var(--brand-green);
+  --color-green-dark: var(--brand-green-dark);
+  --color-purple: var(--brand-purple);
+  --color-blue: var(--brand-blue);
+  --color-cyan: var(--brand-cyan);
+  --color-cta: var(--brand-green);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: var(--off-white);
-  }
+  --font-sans: "Nunito", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: "Nunito", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Glass Card */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+}
+
+/* Gradient Text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

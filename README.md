@@ -17,4 +17,4 @@ An abstracted Data Visualization platform.
 | `docs/`           | Setup and project docs     |
 | `.cursor/`        | Cursor rules and change log for commits |
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (feat., fix., docs., chore., etc.); see `.cursor/CHANGES.md` and `docs/SETUP.md`.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (feat., fix., docs., chore., etc.); see `IDE/CHANGES.md` and `docs/SETUP.md`.

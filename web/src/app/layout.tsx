@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Nunito } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const nunito = Nunito({
+  variable: "--font-nunito",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
-  title: "Vizard.ai",
-  description: "Aesthetic data visualization from CSV + natural language",
+  title: "Vizard.ai — AI-Powered Data Visualization",
+  description: "Transform your data into stunning visualizations with our AI-powered analytics platform. Real-time insights, custom dashboards, and D3.js rendering.",
 };
 
 export default function RootLayout({
@@ -20,9 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${inter.variable} font-sans antialiased`}
-      >
+      <body className={`${nunito.variable} antialiased`}>
         {children}
       </body>
     </html>

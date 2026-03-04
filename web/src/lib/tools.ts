@@ -26,29 +26,6 @@ export interface CleanResponse {
   csv_base64: string;
 }
 
-export type VizType = "bar" | "line" | "scatter" | "histogram" | "choropleth";
-
-export interface VizSpec {
-  viz_type: VizType;
-  x?: string | null;
-  y?: string | null;
-  aggregate?: "sum" | "mean" | "avg" | null;
-  theme?: "minimal" | "bold" | "corporate" | string | null;
-  options?: Record<string, unknown> | null;
-  cleaning_instructions?: string | null;
-  explanation?: string | null;
-  dynamic?: boolean | null;
-}
-
-export interface StaticVizResponse {
-  image_base64: string;
-  format: string;
-}
-
-export interface DynamicVizResponse {
-  html: string;
-}
-
 async function postJson<T>(
   path: string,
   body: unknown,
@@ -88,54 +65,6 @@ export async function cleanData(
   return postJson<CleanResponse>(
     "/clean",
     { csv_base64: csvBase64, instructions },
-    signal,
-  );
-}
-
-export async function createStaticViz(
-  csvBase64: string,
-  spec: VizSpec,
-  outputFormat: "png" | "pdf" = "png",
-  signal?: AbortSignal,
-): Promise<StaticVizResponse> {
-  return postJson<StaticVizResponse>(
-    "/viz",
-    {
-      csv_base64: csvBase64,
-      spec: {
-        viz_type: spec.viz_type,
-        x: spec.x,
-        y: spec.y,
-        aggregate: spec.aggregate,
-        theme: spec.theme ?? "minimal",
-        options: spec.options ?? {},
-        prompt: spec.explanation,
-      },
-      output_format: outputFormat,
-    },
-    signal,
-  );
-}
-
-export async function createDynamicViz(
-  csvBase64: string,
-  spec: VizSpec,
-  signal?: AbortSignal,
-): Promise<DynamicVizResponse> {
-  return postJson<DynamicVizResponse>(
-    "/dynamic-viz",
-    {
-      csv_base64: csvBase64,
-      spec: {
-        viz_type: spec.viz_type,
-        x: spec.x,
-        y: spec.y,
-        aggregate: spec.aggregate,
-        theme: spec.theme ?? "minimal",
-        options: spec.options ?? {},
-        prompt: spec.explanation,
-      },
-    },
     signal,
   );
 }

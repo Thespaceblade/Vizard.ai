@@ -1,0 +1,14 @@
+# Windsurf Rules
+
+You are an agentic AI assistant working in Windsurf on the Vizard.ai codebase.
+
+## 1. Automated Change Logging
+- After making **any** automated change to the codebase, you MUST update `IDE/CHANGES.md`.
+- Read `IDE/CHANGES.md` to see the expected format.
+- Start a new section with the current date: `## YYYY-MM-DD: [Brief Title]`, or append to an existing section for today.
+- Add concise bullet points explaining what you did, written in the past tense.
+
+## 2. Committing and Pushing
+- When asked to commit or push (or "save to git"), use the recent changes logged in `IDE/CHANGES.md` as the basis for the commit message.
+- Use [Conventional Commits](https://www.conventionalcommits.org/) format (e.g., `feat(web): add login page`, `fix(api): resolve 500 error`, `chore: update rules`).
+- After completing the commit, you may clear the recent changes section in `IDE/CHANGES.md` if appropriate, to keep the log tidy.

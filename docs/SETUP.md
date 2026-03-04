@@ -70,7 +70,7 @@ Vizard.ai/
 └── README.md
 ```
 
-## Commits and `.cursor/CHANGES.md`
+## Commits and `IDE/CHANGES.md`
 
-- Automated edits are summarized in `.cursor/CHANGES.md`.
+- Automated edits are summarized in `IDE/CHANGES.md`.
 - Commits and pushes should use that file to write **conventional** commit messages (`feat:`, `fix:`, `docs:`, `chore:`, etc.) so history stays clear and consistent across the team.
