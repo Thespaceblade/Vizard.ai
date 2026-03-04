@@ -1,31 +1,38 @@
-# Automated changes log
+# Changes Log
 
-This file is updated after every automated change so it can be used for descriptive, conventional commit messages.
+> **FOR ALL AGENTIC IDEs (Cursor, Windsurf, Roo/Cline, Gemini):**
+> This file (`IDE/CHANGES.md`) is the SINGLE SOURCE OF TRUTH for logging automated edits.
+> After making **any** automated change to the codebase, you MUST update this file.
+> 1. Start a new section with the current date: `## YYYY-MM-DD: [Brief Title]`
+> 2. Add short bullet points summarizing the changes in past tense.
+> 3. Use this file as the basis for writing [Conventional Commits](https://www.conventionalcommits.org/).
 
-**Last updated:** 2026-03-03
+## 2026-03-04: SaaS Analytics Dashboard Redesign (Glassmorphism)
 
-## Recent changes
+### Glassmorphism UI Pivot
+- **globals.css**: Replaced claymorphism with glassmorphism tokens (frosted glass, Inter/Nunito font, indigo/green/purple palette)
+- **Header.tsx**: Clean frosted glass bar with simplified navigation.
+- **page.tsx**: Refocused on the AI Playground data visualization interface. Removed generic SaaS sections (Pricing, Watch Demo, Stats), kept the Glassmorphism Hero with animated SVG charts and the Features grid.
+- **AI Playground**: Re-integrated the `VisualizationDisplay` and form into the glassmorphism layout, making it the central feature of the page.
+- **types.ts**: Extracted `AgentResult` and `VizSuggestion` into a shared types file.
 
-_Summary of the most recent automated edits. Use this section when crafting commit messages._
+## 2026-03-04: LearnHub-Inspired Landing Page Redesign
+### 🎨 Design System & Branding
+- **Logo Zoom**: Increased logo scale to 2.5x and zoomed to 90% (100px) within "perfect square" containers (`rounded-2xl`).
+- **Brand Colors**: Extracted primary colors from the Vizard logo (Cyan, Teal, Yellow) and updated `globals.css` design tokens.
+- **Claymorphism**: Reinforced the "playful clay" aesthetic with 4px borders and 8px shadows.
+### ⚡️ Hero Section
+- **Dashboard Overhaul**: Replaced the simple bar chart with a high-fidelity "Agent Intelligence" visual demonstrating the Data → D3 workflow (Analyzer, Coder, Renderer).
+- **CTA Updates**: Refined the primary call-to-action to "Start Visualizing" with improved typography.
 
+## 2026-03-03: D3 Code Generation
 - Implemented multi-agent feedback loop framework in `web/src/lib/multi-agent.ts`.
 - Added autonomous D3.js code generation for custom visualizations.
 - Updated web frontend and API routes to support sandboxed D3 chart rendering.
 - Added comprehensive agent feedback test script.
-- Reorganized IDE rules and process tracking into the `IDE/` directory.
 
----
-
-## Commit convention
-
-When committing, use this file to write the commit message in [Conventional Commits](https://www.conventionalcommits.org/) style:
-
-- **feat:** new feature
-- **fix:** bug fix
-- **docs:** documentation only
-- **chore:** tooling, deps, config (no production code)
-- **refactor:** code change that neither fixes a bug nor adds a feature
-- **style:** formatting, whitespace, etc.
-- **test:** adding or updating tests
-
-Example: `feat(web): add upload API route for agent attachments`
+## 2025-03-02: Initial Project Setup and Vercel Config
+- Added `web/vercel.json` and Vercel deployment notes in `web/README.md` (root directory, env vars).
+- Added root `.gitignore` for OS, env, Python, and Node artifacts.
+- Created `docs/SETUP.md` for partner onboarding (clone, deps, run web + python-service).
+- Updated root `README.md` with quick start and repo structure.

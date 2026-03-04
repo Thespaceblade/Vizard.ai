@@ -18,7 +18,7 @@ An abstracted Data Visualization platform.
 | `.cursor/`        | Cursor rules and change log for commits |
 | `test-data/`      | CSV datasets for visualization tests  |
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (feat., fix., docs., chore., etc.); see `.cursor/CHANGES.md` and `docs/SETUP.md`.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (feat., fix., docs., chore., etc.); see `IDE/CHANGES.md` and `docs/SETUP.md`.
 
 ## Test data
 

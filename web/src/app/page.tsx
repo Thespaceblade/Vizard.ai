@@ -1,6 +1,33 @@
 "use client";
 
 import Image from "next/image";
+import { VisualizationDisplay } from "@/components/VisualizationDisplay";
+import { Input, Textarea } from "@/components/Input";
+import { Button } from "@/components/Button";
+import { Header } from "@/components/Header";
+import {
+  BarChart3,
+  TrendingUp,
+  Shield,
+  Zap,
+  Users,
+  Bell,
+  ArrowRight,
+  Check,
+  Play,
+  Activity,
+  Globe,
+  Lock,
+  CheckCircle,
+  Plus,
+  Rocket,
+  MessageCircle,
+  Upload,
+  Code2,
+  Database,
+  Sparkles,
+} from "lucide-react";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { D3Chart } from "@/components/D3Chart";
 import { getChartData, type VizSpec } from "@/lib/tools";
@@ -105,544 +132,410 @@ export default function Home() {
       .catch(() => {
         if (!cancelled) setChartData(null);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [result?.kind, result && 'spec' in result ? result.spec : undefined, csvBase64]);
+    return (
+    <div className="min-h-screen overflow-x-hidden bg-[#F8FAFC]">
+      <Header />
 
-  const callAgent = useCallback(
-    async (overridePrompt?: string, spec?: VizSuggestion | null) => {
-      const activePrompt = overridePrompt ?? prompt;
-      const activeCsv = csvBase64;
+      <main>
+        {/* ═══════════════════════════════════════ */}
+        {/* HERO */}
+        {/* ═══════════════════════════════════════ */}
+        <section className="max-w-[1200px] mx-auto px-6 pt-24 pb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-green/10 rounded-full text-green text-sm font-medium">
+              <span className="h-2 w-2 rounded-full bg-green animate-pulse" />
+              Agent-Driven D3.js Visualizations
+            </span>
+          </motion.div>
 
-      if (!activeCsv && !file) {
-        setError("Please upload a CSV file.");
-        return;
-      }
-
-      setError(null);
-      setResult(null);
-      setChartData(null);
-      setEmbedCopied(false);
-      setIsSubmitting(true);
-      setLoadingPhase(null);
-
-      try {
-        const formData = new FormData();
-        if (file && !activeCsv) {
-          formData.append("file", file);
-        } else if (activeCsv) {
-          formData.append("csvBase64", activeCsv);
-        }
-        formData.append("prompt", activePrompt);
-        if (spec) {
-          formData.append(
-            "spec",
-            JSON.stringify({
-              viz_type: spec.viz_type,
-              x: spec.x ?? null,
-              y: spec.y ?? null,
-            }),
-          );
-        }
-
-        const res = await fetch("/api/agent", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const data = (await res.json()) as AgentResponse;
-          if (!data.ok && "error" in data) {
-            setError(data.error || "Agent failed to generate visualization.");
-          } else {
-            setError("Agent failed to generate visualization.");
-          }
-          setIsSubmitting(false);
-          setLoadingPhase(null);
-          return;
-        }
-
-        const contentType = res.headers.get("Content-Type") ?? "";
-        if (!contentType.includes("ndjson") || !res.body) {
-          const data = (await res.json()) as AgentResponse;
-          if (data.ok && "result" in data) {
-            setResult(data.result);
-            setSuggestions(data.result.suggestions ?? []);
-            if (file?.name) {
-              const base = file.name.replace(/\.[^.]+$/, "");
-              setDownloadName(`${base}-vizard.png`);
-            }
-          } else if (!data.ok && "error" in data) {
-            setError(data.error);
-          }
-          setIsSubmitting(false);
-          setLoadingPhase(null);
-          return;
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let done = false;
-
-        while (!done) {
-          const { value, done: chunkDone } = await reader.read();
-          done = chunkDone;
-          if (value) buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const event = JSON.parse(trimmed) as StreamEvent;
-              if (event.type === "phase") {
-                setLoadingPhase(event.phase);
-              } else if (event.type === "result") {
-                setResult(event.result);
-                setSuggestions(event.result.suggestions ?? []);
-                if (file?.name) {
-                  const base = file.name.replace(/\.[^.]+$/, "");
-                  setDownloadName(`${base}-vizard.png`);
-                }
-                done = true;
-                break;
-              } else if (event.type === "error") {
-                setError(event.error || "Agent failed to generate visualization.");
-                done = true;
-                break;
-              }
-            } catch {
-              // skip malformed lines
-            }
-          }
-        }
-
-        if (buffer.trim()) {
-          try {
-            const event = JSON.parse(buffer.trim()) as StreamEvent;
-            if (event.type === "phase") setLoadingPhase(event.phase);
-            else if (event.type === "result") {
-              setResult(event.result);
-              setSuggestions(event.result.suggestions ?? []);
-              if (file?.name) {
-                const base = file.name.replace(/\.[^.]+$/, "");
-                setDownloadName(`${base}-vizard.png`);
-              }
-            } else if (event.type === "error") {
-              setError(event.error || "Agent failed to generate visualization.");
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        setIsSubmitting(false);
-        setLoadingPhase(null);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unexpected error occurred.";
-        setError(message);
-        setIsSubmitting(false);
-        setLoadingPhase(null);
-      }
-    },
-    [csvBase64, file, prompt],
-  );
-
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    callAgent();
-  }
-
-  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
-    setFile(selected);
-    setPreviewName(selected ? selected.name : null);
-    setCsvBase64(null);
-
-    if (selected) {
-      const isXlsx = selected.name.toLowerCase().endsWith(".xlsx");
-      if (isXlsx) {
-        const formData = new FormData();
-        formData.append("file", selected);
-        fetch("/api/upload", { method: "POST", body: formData })
-          .then((r) => r.json())
-          .then((d: { ok?: boolean; csvBase64?: string; error?: string }) => {
-            if (d.ok && d.csvBase64) setCsvBase64(d.csvBase64);
-            else setError(d.error ?? "Failed to load Excel file.");
-          })
-          .catch(() => setError("Failed to load Excel file."));
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const b64 = (reader.result as string).split(",")[1];
-          setCsvBase64(b64);
-        };
-        reader.readAsDataURL(selected);
-      }
-    }
-  }
-
-  function handleSuggestionClick(s: VizSuggestion) {
-    setPrompt(s.label);
-    callAgent(s.label, s);
-  }
-
-  async function handleCopyEmbed() {
-    if (result?.kind !== "dynamic") return;
-    try {
-      await navigator.clipboard.writeText(result.html);
-      setEmbedCopied(true);
-      setTimeout(() => setEmbedCopied(false), 2000);
-    } catch {
-      setError("Failed to copy to clipboard.");
-    }
-  }
-
-  async function handleDownloadPdf() {
-    if (!csvBase64 || !result || result.kind !== "static") return;
-    setIsSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append("csvBase64", csvBase64);
-      formData.append("prompt", prompt + " [pdf]");
-
-      const res = await fetch("/api/agent", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) return;
-      const contentType = res.headers.get("Content-Type") ?? "";
-      if (!contentType.includes("ndjson") || !res.body) {
-        const data = (await res.json()) as AgentResponse;
-        if (data.ok && "result" in data && data.result.kind === "static") {
-          const link = document.createElement("a");
-          link.href = `data:application/pdf;base64,${data.result.imageBase64}`;
-          link.download = downloadName.replace(/\.png$/, ".pdf");
-          link.click();
-        }
-        return;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (value) buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            const event = JSON.parse(trimmed) as StreamEvent;
-            if (event.type === "result" && event.result.kind === "static") {
-              const link = document.createElement("a");
-              link.href = `data:application/pdf;base64,${event.result.imageBase64}`;
-              link.download = downloadName.replace(/\.png$/, ".pdf");
-              link.click();
-              return;
-            }
-          } catch {
-            // skip
-          }
-        }
-        if (done) break;
-      }
-      if (buffer.trim()) {
-        try {
-          const event = JSON.parse(buffer.trim()) as StreamEvent;
-          if (event.type === "result" && event.result.kind === "static") {
-            const link = document.createElement("a");
-            link.href = `data:application/pdf;base64,${event.result.imageBase64}`;
-            link.download = downloadName.replace(/\.png$/, ".pdf");
-            link.click();
-          }
-        } catch {
-          // ignore
-        }
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  const isStatic = result?.kind === "static";
-  const isDynamic = result?.kind === "dynamic";
-  const isD3Code = result?.kind === "d3code";
-
-  return (
-    <div className="min-h-screen bg-deep-vizard-blue flex flex-col items-center px-4 py-8 relative">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(37,99,235,0.12),transparent)] pointer-events-none" aria-hidden />
-      {/* Homepage header: Deep Vizard Blue, Off White text */}
-      <header className="relative z-10 w-full max-w-5xl flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <span className="relative h-10 w-10 shrink-0">
-            <Image
-              src="/logo.png"
-              alt="Vizard.ai"
-              width={40}
-              height={40}
-              className="object-contain"
-            />
-          </span>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-off-white">
-              Vizard.ai
-            </h1>
-            <p className="text-sm text-off-white/80 mt-1 font-normal">
-              Upload a CSV, describe the visualization, and the agent will
-              create the right chart.
-            </p>
-          </div>
-        </div>
-        <span className="inline-flex items-center rounded-full border border-off-white/30 px-3 py-1 text-xs font-medium text-off-white">
-          Charts from natural language
-        </span>
-      </header>
-
-      <main className="relative z-10 w-full max-w-5xl rounded-3xl border border-slate-gray/20 bg-off-white shadow-2xl p-6 sm:p-8">
-
-        <form
-          onSubmit={handleSubmit}
-          className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
-        >
-          {/* Left column: inputs — Slate Gray text on Off White, Spark Orange accent */}
-          <section className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-gray">
-                Data upload
-              </label>
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-gray/30 bg-white px-4 py-3 text-sm text-slate-gray hover:border-vizard-blue/50 transition-colors">
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {previewName ?? "Choose a CSV or Excel file"}
-                  </span>
-                  <span className="text-xs text-slate-gray/70">
-                    Max a few MB for best performance.
-                  </span>
-                </div>
-                <span className="rounded-full bg-vizard-blue/10 px-3 py-1 text-xs font-semibold text-vizard-blue">
-                  Browse
-                </span>
-                <input
-                  type="file"
-                  accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </label>
-            </div>
-
-            <div className="space-y-2">
-              <label
-                htmlFor="prompt"
-                className="text-sm font-medium text-slate-gray"
-              >
-                Prompt
-              </label>
-              <textarea
-                id="prompt"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={3}
-                className="w-full resize-none rounded-2xl border border-slate-gray/30 bg-white px-3 py-2 text-sm text-slate-gray shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vizard-blue/50 focus-visible:border-vizard-blue transition-colors"
-                placeholder='e.g. "Interactive bar chart of sales by region, bold theme" or "World map of GDP by country"'
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full inline-flex items-center justify-center rounded-full bg-spark-orange px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-spark-orange/30 transition hover:bg-spark-orange/90 disabled:cursor-not-allowed disabled:opacity-70"
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
             >
-              {isSubmitting ? "Generating..." : "Generate Visualization"}
-            </button>
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold text-slate-900 leading-[1.1] mb-5 tracking-tight">
+                Transform Data{" "}
+                <br className="hidden sm:block" />
+                Into <span className="gradient-text">Actionable Insights</span>
+              </h1>
 
-            {error && (
-              <p className="text-xs font-medium text-red-500">{error}</p>
-            )}
+              <p className="text-base text-slate-500 mb-8 max-w-md leading-relaxed">
+                Drop your CSV and let our multi-agent AI system craft custom, interactive D3.js
+                visualizations in seconds. No coding required.
+              </p>
 
-            {/* Quick ideas: Insight Teal active, Spark Orange hover */}
-            {suggestions.length > 0 && (
-              <div className="space-y-1.5 pt-1">
-                <p className="text-[11px] font-medium text-slate-gray uppercase tracking-wide">
-                  Quick ideas
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {suggestions.map((s, i) => (
-                    <button
+              <div className="flex flex-wrap items-center gap-3 mb-10">
+                <a
+                  href="#playground"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-green text-white font-semibold text-sm rounded-lg hover:bg-green-dark transition-colors shadow-sm"
+                >
+                  Start Visualizing Now
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </div>
+            </motion.div>
+
+            {/* Right — Dashboard Mockup */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="relative"
+            >
+              <div className="glass-card p-6 relative">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-slate-900 text-sm">Example: Revenue & Users</h3>
+                    <div className="flex items-center gap-4 mt-1">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <span className="h-2 w-2 rounded-full bg-blue" /> Revenue
+                      </span>
+                      <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <span className="h-2 w-2 rounded-full bg-green" /> Users
+                      </span>
+                      <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <span className="h-2 w-2 rounded-full bg-purple" /> Growth
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold text-green bg-green/10 px-2.5 py-1 rounded-full">Auto-generated</span>
+                </div>
+
+                <div className="relative h-40 mb-4">
+                  <svg viewBox="0 0 400 120" className="w-full h-full" preserveAspectRatio="none">
+                    <line x1="0" y1="30" x2="400" y2="30" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="4" />
+                    <line x1="0" y1="60" x2="400" y2="60" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="4" />
+                    <line x1="0" y1="90" x2="400" y2="90" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="4" />
+
+                    <motion.path
+                      d="M 0 90 Q 50 85 100 70 T 200 50 T 300 35 T 400 25"
+                      fill="none"
+                      stroke="#3B82F6"
+                      strokeWidth="2.5"
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 2 }}
+                    />
+                    {[
+                      [100, 70], [200, 50], [300, 35], [360, 28]
+                    ].map(([cx, cy], i) => (
+                      <motion.circle
+                        key={i}
+                        cx={cx}
+                        cy={cy}
+                        r="4"
+                        fill="#3B82F6"
+                        stroke="white"
+                        strokeWidth="2"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.5 + i * 0.3 }}
+                      />
+                    ))}
+
+                    <motion.path
+                      d="M 0 100 Q 80 90 160 80 T 280 65 T 400 50"
+                      fill="none"
+                      stroke="#8B5CF6"
+                      strokeWidth="2"
+                      strokeDasharray="6 4"
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 2, delay: 0.3 }}
+                    />
+                  </svg>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { icon: Code2, label: "Engine", value: "D3.js", color: "text-blue" },
+                    { icon: Sparkles, label: "Agents", value: "Active", color: "text-primary" },
+                    { icon: TrendingUp, label: "Insights", value: "Instant", color: "text-green" },
+                  ].map((kpi, i) => (
+                    <motion.div
                       key={i}
-                      type="button"
-                      onClick={() => handleSuggestionClick(s)}
-                      disabled={isSubmitting}
-                      className="rounded-lg border border-slate-gray/25 bg-white px-2.5 py-1 text-[11px] text-slate-gray hover:border-spark-orange/60 hover:text-spark-orange hover:bg-spark-orange/5 transition-colors disabled:opacity-50"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 1 + i * 0.2 }}
+                      className="glass-card p-3 text-center"
                     >
-                      {s.label}
-                    </button>
+                      <div className="flex items-center gap-1.5 justify-center mb-1">
+                        <kpi.icon className={`h-3 w-3 ${kpi.color}`} />
+                        <span className="text-[10px] font-medium text-slate-400">{kpi.label}</span>
+                      </div>
+                      <p className="text-lg font-bold text-slate-900">{kpi.value}</p>
+                    </motion.div>
                   ))}
                 </div>
               </div>
-            )}
-          </section>
 
-          {/* Right column: preview — chart UI uses Vizard Blue / Teal / Orange */}
-          <section className="space-y-3 rounded-2xl border border-slate-gray/20 bg-slate-gray/5 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-slate-gray">
-                Visualization Preview
-              </h2>
-              <span className="text-[10px] uppercase tracking-wide text-slate-gray/70">
-                {isD3Code
-                  ? "Custom D3"
-                  : isDynamic
-                    ? chartData && !chartData.use_plotly
-                      ? "Interactive (D3)"
-                      : "Interactive (Plotly)"
-                    : "Static PNG"}
-              </span>
-            </div>
+              <div className="absolute -top-10 -right-10 w-60 h-60 bg-gradient-to-br from-primary/10 via-purple/10 to-cyan/5 rounded-full blur-3xl -z-10" />
+            </motion.div>
+          </div>
+        </section>
 
-            <div className="relative flex min-h-[320px] items-center justify-center rounded-xl border border-slate-gray/20 bg-white overflow-hidden">
-              {isSubmitting ? (
-                <div className="flex flex-col items-center justify-center gap-4 w-full py-12">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-gray/20 border-t-spark-orange" aria-hidden />
-                  <p className="text-sm text-slate-gray font-medium transition-opacity duration-200" key={loadingPhase ?? "initial"}>
-                    {loadingPhase === "inspect"
-                      ? "Reading your data…"
-                      : loadingPhase === "plan"
-                        ? "Choosing chart type and axes…"
-                        : loadingPhase === "clean"
-                          ? "Cleaning data…"
-                          : loadingPhase === "render"
-                            ? "Rendering chart…"
-                            : "Preparing…"}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2" aria-hidden>
-                    {(["inspect", "plan", "clean", "render"] as const).map((phase, i) => (
-                      <span
-                        key={phase}
-                        className={`h-2 w-2 rounded-full transition-colors duration-200 ${loadingPhase === phase
-                          ? "bg-spark-orange scale-110"
-                          : (loadingPhase && phaseOrder(loadingPhase) > i)
-                            ? "bg-insight-teal/70"
-                            : "bg-slate-gray/30"
-                          }`}
-                        title={phase}
-                      />
-                    ))}
-                  </div>
+        {/* ═══════════════════════════════════════ */}
+        {/* AI PLAYGROUND */}
+        {/* ═══════════════════════════════════════ */}
+        <section id="playground" className="max-w-[1200px] mx-auto px-6 py-16 scroll-mt-24 relative">
+          <div className="absolute inset-0 bg-primary/5 -skew-y-2 -z-10" />
+
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-3 tracking-tight">
+              Data Visualization <span className="gradient-text">Playground</span>
+            </h2>
+            <p className="text-base text-slate-500 max-w-xl mx-auto font-medium leading-relaxed">
+              Upload your raw data, describe what you want to see, and watch our agents build the perfect D3.js chart.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-10">
+            {/* Left — Form */}
+            <div className="glass-card p-8 border-2 border-white/60 shadow-xl bg-white/40">
+              <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                    <div className="h-6 w-6 bg-primary/10 text-primary flex items-center justify-center rounded-md">
+                      <Database className="h-3 w-3" />
+                    </div>
+                    Data Source
+                  </label>
+                  <label className="group relative flex cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-slate-300 bg-white/50 p-10 text-center transition-all hover:bg-white/80 hover:border-primary/50 overflow-hidden">
+                    <div className="rounded-xl bg-white p-3 text-primary shadow-sm group-hover:scale-110 transition-transform border border-slate-100">
+                      <Upload className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        {file ? file.name : "Choose CSV File"}
+                      </p>
+                      <p className="text-xs text-slate-500 font-medium mt-1">
+                        {file ? `${(file.size / 1024).toFixed(1)} KB` : "Drop your data here"}
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".csv"
+                      onChange={handleFileChange}
+                    />
+                  </label>
                 </div>
-              ) : isStatic && result?.imageBase64 ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`data:image/png;base64,${result.imageBase64}`}
-                  alt="Generated visualization"
-                  className="max-h-[400px] w-full object-contain"
-                />
-              ) : isD3Code && result?.html ? (
-                <iframe
-                  srcDoc={result.html}
-                  sandbox="allow-scripts"
-                  className="h-[500px] w-full rounded-lg border-0"
-                  title="Custom D3.js visualization"
-                />
-              ) : chartData && !chartData.use_plotly ? (
-                <div className="w-full min-h-[320px] flex items-center justify-center p-2">
-                  <D3Chart
-                    spec={chartData.spec}
-                    data={chartData.data}
-                    width={600}
-                    height={360}
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                    <div className="h-6 w-6 bg-purple/10 text-purple flex items-center justify-center rounded-md">
+                      <MessageCircle className="h-3 w-3" />
+                    </div>
+                    What should we build?
+                  </label>
+                  <Textarea
+                    placeholder="e.g. 'Show me a scatter plot comparing sales vs marketing spend...'"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="min-h-[140px] rounded-xl p-5 bg-white/60 border border-slate-200 focus:bg-white focus:border-primary/30 transition-all text-sm font-medium leading-relaxed shadow-sm"
                   />
                 </div>
-              ) : isDynamic && result?.html ? (
-                <iframe
-                  ref={iframeRef}
-                  srcDoc={result.html}
-                  sandbox="allow-scripts"
-                  className="h-[400px] w-full rounded-lg border-0"
-                  title="Dynamic visualization"
-                />
-              ) : (
-                <p className="text-xs text-slate-gray/70 text-center px-6 font-normal">
-                  Upload a CSV and describe your ideal chart to see your
-                  visualization here.
-                </p>
-              )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl py-4 bg-gradient-to-r from-primary to-purple text-white font-bold tracking-wide text-sm shadow-md hover:shadow-lg hover:opacity-95 transition-all disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Rocket className="h-4 w-4 animate-bounce" />
+                      ANALYZING...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      GENERATE VISUALIZATION
+                    </>
+                  )}
+                </button>
+
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 font-medium text-sm text-center justify-center"
+                  >
+                    <Activity className="h-4 w-4" />
+                    {error}
+                  </motion.div>
+                )}
+              </form>
             </div>
 
-            {/* Export controls — Spark Orange accent */}
-            {result && (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {isStatic && (
-                  <>
-                    <a
-                      href={`data:image/png;base64,${result.imageBase64}`}
-                      download={downloadName}
-                      className="inline-flex items-center rounded-full border border-slate-gray/30 bg-white px-4 py-2 text-xs font-semibold text-slate-gray hover:border-spark-orange/60 hover:text-spark-orange transition-colors"
-                    >
-                      Download PNG
-                    </a>
-                    <button
-                      type="button"
-                      onClick={handleDownloadPdf}
-                      disabled={isSubmitting}
-                      className="inline-flex items-center rounded-full border border-slate-gray/30 bg-white px-4 py-2 text-xs font-semibold text-slate-gray hover:border-spark-orange/60 hover:text-spark-orange transition-colors disabled:opacity-50"
-                    >
-                      Download PDF
-                    </button>
-                  </>
-                )}
-                {isDynamic && (!chartData || chartData.use_plotly) && (
-                  <button
-                    type="button"
-                    onClick={handleCopyEmbed}
-                    className="inline-flex items-center rounded-full bg-spark-orange/10 border border-spark-orange/40 px-4 py-2 text-xs font-semibold text-spark-orange hover:bg-spark-orange hover:text-white transition-colors"
-                  >
-                    {embedCopied ? "Copied!" : "Copy Embed Code"}
-                  </button>
-                )}
-                {isD3Code && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (result?.kind !== "d3code") return;
-                      try {
-                        await navigator.clipboard.writeText(result.html);
-                        setEmbedCopied(true);
-                        setTimeout(() => setEmbedCopied(false), 2000);
-                      } catch {
-                        setError("Failed to copy to clipboard.");
-                      }
-                    }}
-                    className="inline-flex items-center rounded-full bg-spark-orange/10 border border-spark-orange/40 px-4 py-2 text-xs font-semibold text-spark-orange hover:bg-spark-orange hover:text-white transition-colors"
-                  >
-                    {embedCopied ? "Copied!" : "Copy D3 Code"}
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Right — Viz Display */}
+            <div className="flex flex-col gap-6">
+              <VisualizationDisplay
+                result={result}
+                isSubmitting={isSubmitting}
+                handleCopyEmbed={() => {
+                  if (result?.html) {
+                    navigator.clipboard.writeText(result.html);
+                  }
+                }}
+                embedCopied={false}
+              />
+            </div>
+          </div>
+        </section>
 
-            {/* Agent notes */}
-            {result?.explanation && (
-              <div className="rounded-xl border border-slate-gray/20 bg-slate-gray/5 p-3">
-                <p className="text-xs font-medium text-slate-gray">
-                  Agent notes
-                </p>
-                <p className="mt-1 text-xs text-slate-gray/80 whitespace-pre-wrap font-normal">
-                  {result.explanation}
-                </p>
-              </div>
-            )}
-          </section>
-        </form>
+        {/* ═══════════════════════════════════════ */}
+        {/* FEATURES */}
+        {/* ═══════════════════════════════════════ */}
+        <section id="features" className="max-w-[1200px] mx-auto px-6 py-20">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-3 tracking-tight">
+              Powerful Agentic Capabilities
+            </h2>
+            <p className="text-base text-slate-500 max-w-lg mx-auto">
+              Behind the scenes, specialized agents work together to understand your data and write perfect code.
+            </p>
+          </div>
 
-        <footer className="mt-6 flex items-center justify-between text-[11px] text-slate-gray/70 font-normal">
-          <span>Vizard.ai</span>
-          <span>PNG, PDF, interactive, maps</span>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              {
+                icon: Database,
+                title: "Data Analysis",
+                desc: "The Analyzer Agent parses your CSV, detects types, handles missing values, and calculates statistics.",
+                color: "bg-blue/10 text-blue",
+              },
+              {
+                icon: Code2,
+                title: "Code Generation",
+                desc: "The Coder Agent takes the analysis and your intent to generate custom, bug-free D3.js visualization code.",
+                color: "bg-primary/10 text-primary",
+              },
+              {
+                icon: Shield,
+                title: "Data Privacy",
+                desc: "Your data stays in the browser. Only the schema and statistics are sent to the AI, ensuring complete security.",
+                color: "bg-green/10 text-green",
+              },
+              {
+                icon: Globe,
+                title: "Interactive Output",
+                desc: "Get fully interactive HTML/JS outputs with tooltips, zooming, and responsive layouts.",
+                color: "bg-purple/10 text-purple",
+              },
+            ].map((f, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 15 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.08 }}
+                className="glass-card p-6 border-slate-200/60 hover:shadow-lg hover:border-primary/20 transition-all bg-white/40"
+              >
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center mb-4 ${f.color}`}>
+                  <f.icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-semibold text-slate-900 text-base mb-1.5">{f.title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{f.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════ */}
+        {/* CTA */}
+        {/* ═══════════════════════════════════════ */}
+        <section className="max-w-[1200px] mx-auto px-6 py-12">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-gradient-to-r from-primary to-purple rounded-3xl p-10 sm:p-14 text-center relative overflow-hidden shadow-2xl"
+          >
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-3 tracking-tight">
+              Ready to Visualize?
+            </h2>
+            <p className="text-base text-white/80 mb-8 max-w-md mx-auto font-medium">
+              Start generating beautiful, interactive data visualizations right now. Open source and totally free.
+            </p>
+            <a
+              href="#playground"
+              className="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-primary font-bold text-sm rounded-xl hover:bg-slate-50 transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5"
+            >
+              Go to Playground
+              <ArrowRight className="h-4 w-4" />
+            </a>
+
+            <div className="absolute -top-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+            <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-white/5 rounded-full blur-3xl" />
+          </motion.div>
+        </section>
+
+        {/* ═══════════════════════════════════════ */}
+        {/* FOOTER */}
+        {/* ═══════════════════════════════════════ */}
+        <footer className="max-w-[1200px] mx-auto px-6 pt-14 pb-8 border-t border-slate-200 mt-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-10 mb-10">
+            {/* Brand */}
+            <div className="lg:col-span-2">
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+                  <Image src="/logo.png" alt="Vizard" width={24} height={24} className="object-contain brightness-0 invert" />
+                </div>
+                <span className="font-bold text-slate-900">Vizard<span className="text-primary">.ai</span></span>
+              </div>
+              <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
+                Transform your data into actionable insights with our multi-agent AI visualization system.
+              </p>
+            </div>
+
+            {/* Links */}
+            {[
+              {
+                title: "Product",
+                links: [
+                  { label: "Playground", href: "#playground" },
+                  { label: "Features", href: "#features" },
+                  { label: "API", href: "/api/docs" },
+                ],
+              },
+              {
+                title: "Resources",
+                links: [
+                  { label: "Documentation", href: "/docs" },
+                  { label: "GitHub", href: "https://github.com" },
+                  { label: "Examples", href: "#" },
+                ],
+              },
+            ].map((col, i) => (
+              <div key={i}>
+                <h4 className="font-semibold text-slate-900 text-sm mb-3">{col.title}</h4>
+                <ul className="space-y-2">
+                  {col.links.map((link, j) => (
+                    <li key={j}>
+                      <a href={link.href} className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t border-slate-100 gap-3">
+            <p className="text-xs text-slate-400">&copy; 2024 Vizard.ai. Open Source.</p>
+            <div className="flex gap-4">
+              <span className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
+                <span className="h-1.5 w-1.5 rounded-full bg-green" /> Multi-Agent Engine
+              </span>
+            </div>
+          </div>
         </footer>
       </main>
     </div>
