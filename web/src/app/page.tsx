@@ -30,36 +30,8 @@ import {
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { D3Chart } from "@/components/D3Chart";
-import { getChartData, type VizSpec } from "@/lib/tools";
-
-interface VizSuggestion {
-  viz_type: string;
-  x: string | null;
-  y: string | null;
-  label: string;
-}
-
-type AgentResult =
-  | {
-    kind: "static";
-    imageBase64: string;
-    explanation?: string;
-    suggestions?: VizSuggestion[];
-    spec?: { viz_type: string; x?: string | null; y?: string | null;[k: string]: unknown };
-  }
-  | {
-    kind: "dynamic";
-    html: string;
-    explanation?: string;
-    suggestions?: VizSuggestion[];
-    spec?: { viz_type: string; x?: string | null; y?: string | null;[k: string]: unknown };
-  }
-  | {
-    kind: "d3code";
-    html: string;
-    explanation?: string;
-    suggestions?: VizSuggestion[];
-  };
+import { getChartData, type VizSpec, type VizSuggestion } from "@/lib/tools";
+import { type AgentResult } from "@/lib/agent";
 
 type AgentResponse =
   | { ok: true; result: AgentResult }
@@ -132,7 +104,121 @@ export default function Home() {
       .catch(() => {
         if (!cancelled) setChartData(null);
       });
-    return (
+    return () => {
+      cancelled = true;
+    };
+  }, [result?.kind, result && 'spec' in result ? result.spec : undefined, csvBase64]);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      setPreviewName(null);
+
+      // Read file for local visualization processing if needed
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (text) {
+          // just taking the first 5MB to avoid blowing up memory with massive CSVs for local testing
+          const base64 = btoa(unescape(encodeURIComponent(text.slice(0, 5000000))));
+          setCsvBase64(base64);
+        }
+      };
+      reader.readAsText(selectedFile);
+    }
+  };
+
+  const handleCopyEmbed = () => {
+    if (!result || result.kind !== "dynamic" || !result.html) return;
+    navigator.clipboard.writeText(result.html);
+    setEmbedCopied(true);
+    setTimeout(() => setEmbedCopied(false), 2000);
+  };
+
+  const handleDownloadImage = () => {
+    if (!result || result.kind !== "static" || !result.imageBase64) return;
+    const link = document.createElement("a");
+    link.href = `data:image/png;base64,${result.imageBase64}`;
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!file && !prompt) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    setResult(null);
+    setSuggestions([]);
+    setLoadingPhase("inspect");
+
+    const formData = new FormData();
+    if (file) formData.append("file", file);
+    formData.append("prompt", prompt);
+
+    try {
+      const response = await fetch("/api/agent", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+
+      let currentPhase: LoadingPhase = "inspect";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = new TextDecoder().decode(value);
+        const lines = text.split("\n").filter((line) => line.trim());
+
+        for (const line of lines) {
+          try {
+            const event = JSON.parse(line) as StreamEvent;
+
+            switch (event.type) {
+              case "phase":
+                if (phaseOrder(event.phase) > phaseOrder(currentPhase)) {
+                  setLoadingPhase(event.phase);
+                  currentPhase = event.phase;
+                }
+                break;
+              case "result":
+                setLoadingPhase(null);
+                setResult(event.result);
+                if (event.result.suggestions) {
+                  setSuggestions(event.result.suggestions);
+                }
+                break;
+              case "error":
+                setLoadingPhase(null);
+                throw new Error(event.error);
+            }
+          } catch (e) {
+            console.error("Error parsing stream line:", e);
+          }
+        }
+      }
+    } catch (err) {
+      setLoadingPhase(null);
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsSubmitting(false);
+      setLoadingPhase(null);
+    }
+  };
+
+  return (
     <div className="min-h-screen overflow-x-hidden bg-[#F8FAFC]">
       <Header />
 
@@ -379,7 +465,7 @@ export default function Home() {
                 result={result}
                 isSubmitting={isSubmitting}
                 handleCopyEmbed={() => {
-                  if (result?.html) {
+                  if (result && "html" in result && result.html) {
                     navigator.clipboard.writeText(result.html);
                   }
                 }}
